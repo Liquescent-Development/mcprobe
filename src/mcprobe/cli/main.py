@@ -3,10 +3,15 @@
 Provides the command-line interface for running MCP server tests.
 """
 
+from __future__ import annotations
+
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+if TYPE_CHECKING:
+    from mcprobe.generator import ComplexityLevel
 
 import typer
 from rich.console import Console
@@ -385,6 +390,173 @@ def providers() -> None:
         table.add_row(provider_name)
 
     console.print(table)
+
+
+@app.command(name="generate-scenarios")
+def generate_scenarios(  # noqa: PLR0913 - Typer requires CLI args as function parameters
+    server: Annotated[
+        str,
+        typer.Option(
+            "--server",
+            "-s",
+            help="MCP server command (e.g., 'npx @example/weather-mcp').",
+        ),
+    ],
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output directory for generated scenarios.",
+        ),
+    ] = Path("./generated-scenarios"),
+    complexity: Annotated[
+        str,
+        typer.Option(
+            "--complexity",
+            "-c",
+            help="Complexity level: simple, medium, or complex.",
+        ),
+    ] = "medium",
+    count: Annotated[
+        int,
+        typer.Option(
+            "--count",
+            "-n",
+            help="Number of scenarios to generate.",
+        ),
+    ] = 10,
+    model: Annotated[
+        str,
+        typer.Option(
+            "--model",
+            "-m",
+            help="Model for generation.",
+        ),
+    ] = "llama3.2",
+    base_url: Annotated[
+        str,
+        typer.Option(
+            "--base-url",
+            "-u",
+            help="Base URL for Ollama API.",
+        ),
+    ] = "http://localhost:11434",
+) -> None:
+    """Generate test scenarios from MCP tool schemas.
+
+    Connects to an MCP server, extracts tool schemas, and generates
+    test scenarios based on the specified complexity level.
+
+    Example:
+        mcprobe generate-scenarios --server "npx @example/weather-mcp" -o ./scenarios
+    """
+    from mcprobe.generator import ComplexityLevel  # noqa: PLC0415
+
+    # Validate complexity level
+    try:
+        complexity_level = ComplexityLevel(complexity.lower())
+    except ValueError:
+        console.print(f"[red]Error:[/red] Invalid complexity level: {complexity}")
+        console.print("Valid options: simple, medium, complex")
+        raise typer.Exit(code=1) from None
+
+    try:
+        asyncio.run(
+            _generate_scenarios_async(
+                server=server,
+                output=output,
+                complexity=complexity_level,
+                count=count,
+                model=model,
+                base_url=base_url,
+            )
+        )
+    except MCProbeError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from e
+
+
+async def _generate_scenarios_async(  # noqa: PLR0913 - CLI helper needs multiple args
+    server: str,
+    output: Path,
+    complexity: ComplexityLevel,
+    count: int,
+    model: str,
+    base_url: str,
+) -> None:
+    """Generate scenarios asynchronously.
+
+    Args:
+        server: MCP server command.
+        output: Output directory path.
+        complexity: Complexity level.
+        count: Number of scenarios to generate.
+        model: Model name.
+        base_url: LLM API base URL.
+    """
+    import yaml  # noqa: PLC0415
+
+    from mcprobe.generator import ScenarioGenerator, extract_tools_from_server  # noqa: PLC0415
+
+    console.print(f"[blue]Connecting to MCP server: {server}[/blue]")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Extracting tool schemas...", total=None)
+
+        try:
+            tools = await extract_tools_from_server(server)
+        except Exception as e:
+            console.print(f"[red]Error connecting to server:[/red] {e}")
+            raise typer.Exit(code=1) from e
+
+        progress.update(task, description=f"Found {len(tools.tools)} tools")
+
+    console.print(f"[green]Found {len(tools.tools)} tool(s):[/green]")
+    for tool in tools.tools:
+        console.print(f"  - {tool.name}: {tool.description or 'No description'}")
+
+    # Create LLM provider
+    llm_config = LLMConfig(provider="ollama", model=model, base_url=base_url)
+    provider = create_provider(llm_config)
+
+    # Generate scenarios
+    console.print(
+        f"\n[blue]Generating {count} scenario(s) at {complexity.value} complexity...[/blue]"
+    )
+
+    generator = ScenarioGenerator(provider)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        progress.add_task("Generating scenarios...", total=None)
+        scenarios = await generator.generate(tools, complexity, count)
+
+    console.print(f"[green]Generated {len(scenarios)} scenario(s)[/green]")
+
+    # Write to output directory
+    output.mkdir(parents=True, exist_ok=True)
+
+    for scenario in scenarios:
+        # Create safe filename
+        safe_name = scenario.name.lower().replace(" ", "_").replace("/", "_")
+        filename = f"{safe_name}.yaml"
+        filepath = output / filename
+
+        scenario_dict = scenario.model_dump(mode="json")
+        filepath.write_text(yaml.dump(scenario_dict, default_flow_style=False, sort_keys=False))
+        console.print(f"  [dim]Created:[/dim] {filepath}")
+
+    console.print(f"\n[green]Scenarios written to {output}[/green]")
 
 
 def main() -> None:

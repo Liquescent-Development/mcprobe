@@ -58,6 +58,9 @@ packages = ["src/mcprobe"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-v --tb=short"
+markers = [
+    "e2e: end-to-end tests requiring external services (Ollama)",
+]
 
 [tool.ruff]
 target-version = "py311"
