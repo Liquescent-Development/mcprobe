@@ -75,9 +75,7 @@ class SyntheticUserLLM:
             OrchestrationError: If the LLM call fails.
         """
         # Add assistant message to history
-        self._conversation_history.append(
-            Message(role="assistant", content=assistant_message)
-        )
+        self._conversation_history.append(Message(role="assistant", content=assistant_message))
 
         # Check if the assistant's message is a question (asking for clarification)
         if assistant_message.strip().endswith("?"):
@@ -109,9 +107,7 @@ class SyntheticUserLLM:
             "makes sense",
             "answers my question",
         ]
-        is_satisfied = any(
-            phrase in response.lower() for phrase in satisfaction_phrases
-        )
+        is_satisfied = any(phrase in response.lower() for phrase in satisfaction_phrases)
 
         return UserResponse(message=response, is_satisfied=is_satisfied)
 
@@ -139,9 +135,7 @@ class SyntheticUserLLM:
             raise OrchestrationError(msg) from e
 
         # Add our response to history
-        self._conversation_history.append(
-            Message(role="user", content=response.content)
-        )
+        self._conversation_history.append(Message(role="user", content=response.content))
 
         return response.content
 
@@ -175,9 +169,7 @@ class SyntheticUserLLM:
 
     def reset(self) -> None:
         """Reset the synthetic user for a new conversation."""
-        self._conversation_history = [
-            Message(role="system", content=self._system_prompt)
-        ]
+        self._conversation_history = [Message(role="system", content=self._system_prompt)]
         self._questions_asked = 0
 
     @property

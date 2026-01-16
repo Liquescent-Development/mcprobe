@@ -37,9 +37,7 @@ class OllamaProvider(LLMProvider):
 
         self._client = ollama.AsyncClient(**client_kwargs)
 
-    def _convert_messages(
-        self, messages: list[Message]
-    ) -> list[dict[str, Any]]:
+    def _convert_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
         """Convert MCProbe messages to Ollama format.
 
         Args:
@@ -59,9 +57,7 @@ class OllamaProvider(LLMProvider):
 
         return ollama_messages
 
-    def _convert_tools(
-        self, tools: list[dict[str, Any]] | None
-    ) -> list[dict[str, Any]] | None:
+    def _convert_tools(self, tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
         """Convert tool definitions to Ollama format.
 
         Args:
@@ -76,9 +72,7 @@ class OllamaProvider(LLMProvider):
         # Ollama uses OpenAI-compatible tool format
         return tools
 
-    def _extract_tool_calls(
-        self, response: ollama.ChatResponse
-    ) -> list[dict[str, Any]]:
+    def _extract_tool_calls(self, response: ollama.ChatResponse) -> list[dict[str, Any]]:
         """Extract tool calls from Ollama response.
 
         Args:

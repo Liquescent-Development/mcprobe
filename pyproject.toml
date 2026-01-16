@@ -30,6 +30,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+adk = [
+    "google-adk>=1.22.0",
+]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
@@ -98,8 +101,14 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = [
     "ollama.*",
+    "google.adk.*",
+    "google.genai.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "mcprobe.agents.adk"
+disallow_untyped_calls = false
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
