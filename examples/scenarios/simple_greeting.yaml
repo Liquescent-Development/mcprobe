@@ -1,0 +1,33 @@
+name: Simple Greeting Test
+description: Test that the agent can respond to a simple greeting appropriately.
+
+synthetic_user:
+  persona: A casual user looking for friendly interaction
+  initial_query: "Hello! Can you help me today?"
+  max_turns: 5
+  clarification_behavior:
+    known_facts:
+      - I want general assistance
+    unknown_facts:
+      - Specific technical details
+    traits:
+      patience: medium
+      verbosity: concise
+      expertise: novice
+
+evaluation:
+  correctness_criteria:
+    - The agent responds with a greeting
+    - The agent offers to help
+  failure_criteria:
+    - The agent ignores the user
+    - The agent responds rudely
+  tool_usage:
+    required_tools: []
+    prohibited_tools: []
+  efficiency:
+    max_conversation_turns: 5
+
+tags:
+  - basic
+  - greeting
