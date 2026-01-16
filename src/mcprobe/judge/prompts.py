@@ -4,7 +4,7 @@ These templates define how the judge evaluates conversations against test criter
 """
 
 from mcprobe.models.conversation import ConversationResult, ConversationTurn
-from mcprobe.models.scenario import TestScenario
+from mcprobe.models.scenario import TestScenario, ToolCallCriterion
 
 # Truncation limits for result strings in output
 TRANSCRIPT_RESULT_TRUNCATE_LEN = 200
@@ -40,9 +40,27 @@ You are evaluating an AI agent's performance on a user assistance task.
 Required tools: {required_tools}
 Prohibited tools: {prohibited_tools}
 
+### Tool Call Criteria
+Evaluate if the actual tool calls satisfy these assertions:
+{tool_call_criteria}
+
 ### Efficiency Targets
 Max tool calls: {max_tool_calls}
 Max conversation turns: {max_turns}
+
+## Conversation Quality Analysis
+Analyze the conversation flow and provide metrics:
+1. How many clarifying questions did the agent ask?
+2. Did the conversation backtrack or repeat topics? Count the backtracks.
+3. How many turns until the first substantive answer was given?
+4. Was the final answer complete? Score from 0.0 to 1.0.
+
+## MCP Server Improvement Suggestions
+If there were issues with tool usage, provide structured suggestions categorized by:
+- description: Tool description was unclear
+- parameter: Parameter documentation was insufficient
+- return_value: Return value format/content was problematic
+- schema: Schema definition had issues
 
 ## Your Task
 Evaluate the conversation and provide your assessment in JSON format:
@@ -55,15 +73,31 @@ Evaluate the conversation and provide your assessment in JSON format:
         "required_tools_used": ["list"],
         "prohibited_tools_used": ["list"],
         "all_required_used": true/false,
-        "no_prohibited_used": true/false
+        "no_prohibited_used": true/false,
+        "criteria_results": {{"tool_name": {{"assertion": true/false, ...}}, ...}}
     }},
     "efficiency_results": {{
         "tool_calls": number,
         "conversation_turns": number,
         "within_limits": true/false
     }},
+    "quality_metrics": {{
+        "clarification_count": number,
+        "backtrack_count": number,
+        "turns_to_first_answer": number,
+        "final_answer_completeness": 0.0-1.0
+    }},
     "reasoning": "Brief explanation of your judgment",
-    "suggestions": ["Improvement suggestions for the MCP server if applicable"]
+    "suggestions": ["Improvement suggestions for the MCP server if applicable"],
+    "structured_suggestions": [
+        {{
+            "category": "description|parameter|return_value|schema",
+            "tool_name": "name or null if general",
+            "issue": "What the problem was",
+            "suggestion": "How to fix it",
+            "severity": "low|medium|high"
+        }}
+    ]
 }}
 """
 
@@ -135,6 +169,26 @@ def format_criteria_list(criteria: list[str]) -> str:
     return "\n".join(f"- {c}" for c in criteria)
 
 
+def format_tool_call_criteria(criteria: list[ToolCallCriterion]) -> str:
+    """Format tool call criteria for the judge prompt.
+
+    Args:
+        criteria: List of tool call criteria.
+
+    Returns:
+        Formatted tool call criteria string.
+    """
+    if not criteria:
+        return "None specified"
+
+    lines: list[str] = []
+    for criterion in criteria:
+        lines.append(f"Tool: {criterion.tool}")
+        for assertion in criterion.assertions:
+            lines.append(f"  - {assertion}")
+    return "\n".join(lines)
+
+
 def build_judge_prompt(
     scenario: TestScenario,
     result: ConversationResult,
@@ -169,6 +223,7 @@ def build_judge_prompt(
         failure_criteria=format_criteria_list(evaluation.failure_criteria),
         required_tools=required_tools,
         prohibited_tools=prohibited_tools,
+        tool_call_criteria=format_tool_call_criteria(evaluation.tool_usage.tool_call_criteria),
         max_tool_calls=max_tool_calls,
         max_turns=max_turns,
     )

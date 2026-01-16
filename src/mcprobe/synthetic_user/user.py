@@ -47,6 +47,7 @@ class SyntheticUserLLM:
             Message(role="system", content=self._system_prompt)
         ]
         self._questions_asked = 0
+        self._last_tokens_used = 0
 
     async def get_initial_query(self) -> str:
         """Get the initial query to start the conversation.
@@ -90,7 +91,11 @@ class SyntheticUserLLM:
                     "The assistant has provided a helpful answer. "
                     "Express brief thanks and indicate you're satisfied."
                 )
-                return UserResponse(message=response, is_satisfied=True)
+                return UserResponse(
+                    message=response,
+                    is_satisfied=True,
+                    tokens_used=self._last_tokens_used,
+                )
 
         # Generate a normal response
         response = await self._generate_response()
@@ -109,7 +114,11 @@ class SyntheticUserLLM:
         ]
         is_satisfied = any(phrase in response.lower() for phrase in satisfaction_phrases)
 
-        return UserResponse(message=response, is_satisfied=is_satisfied)
+        return UserResponse(
+            message=response,
+            is_satisfied=is_satisfied,
+            tokens_used=self._last_tokens_used,
+        )
 
     async def _generate_response(self, guidance: str | None = None) -> str:
         """Generate a response using the LLM.
@@ -133,6 +142,11 @@ class SyntheticUserLLM:
         except Exception as e:
             msg = f"Synthetic user failed to generate response: {e}"
             raise OrchestrationError(msg) from e
+
+        # Track token usage
+        self._last_tokens_used = response.usage.get("prompt_tokens", 0) + response.usage.get(
+            "completion_tokens", 0
+        )
 
         # Add our response to history
         self._conversation_history.append(Message(role="user", content=response.content))
@@ -171,6 +185,7 @@ class SyntheticUserLLM:
         """Reset the synthetic user for a new conversation."""
         self._conversation_history = [Message(role="system", content=self._system_prompt)]
         self._questions_asked = 0
+        self._last_tokens_used = 0
 
     @property
     def questions_asked(self) -> int:
