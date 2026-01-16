@@ -291,6 +291,32 @@ def _display_verbose_results(
         status = "[red]TRIGGERED[/red]" if triggered else "[green]OK[/green]"
         console.print(f"  {criterion}: {status}")
 
+    console.print("\n[bold]Quality Metrics:[/bold]")
+    qm = judgment_result.quality_metrics
+    console.print(f"  Clarifications: {qm.clarification_count}")
+    console.print(f"  Backtracks: {qm.backtrack_count}")
+    console.print(f"  Turns to first answer: {qm.turns_to_first_answer}")
+    console.print(f"  Answer completeness: {qm.final_answer_completeness:.0%}")
+
+    console.print("\n[bold]Efficiency:[/bold]")
+    eff = judgment_result.efficiency_results
+    console.print(f"  Total tokens: {eff.get('total_tokens', 0)}")
+    console.print(f"  Tool calls: {eff.get('total_tool_calls', 0)}")
+    console.print(f"  Turns: {eff.get('total_turns', 0)}")
+
+    if judgment_result.structured_suggestions:
+        console.print("\n[bold]MCP Improvement Suggestions:[/bold]")
+        for s in judgment_result.structured_suggestions:
+            severity_color = {"low": "blue", "medium": "yellow", "high": "red"}.get(
+                s.severity.value, "white"
+            )
+            console.print(
+                f"  [{severity_color}][{s.severity.value}][/{severity_color}] "
+                f"{s.category.value}: {s.tool_name or 'general'}"
+            )
+            console.print(f"    Issue: {s.issue}")
+            console.print(f"    Suggestion: {s.suggestion}")
+
 
 def _display_summary(results: list[tuple[str, bool, float]]) -> None:
     """Display summary of all scenario results.

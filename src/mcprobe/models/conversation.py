@@ -33,6 +33,7 @@ class UserResponse(BaseModel):
 
     message: str
     is_satisfied: bool = False
+    tokens_used: int = 0
 
 
 class ConversationTurn(BaseModel):

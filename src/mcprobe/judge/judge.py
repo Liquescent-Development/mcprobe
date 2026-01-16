@@ -3,14 +3,39 @@
 Evaluates conversation results against test scenario criteria.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from mcprobe.exceptions import JudgmentError
 from mcprobe.judge.prompts import build_judge_prompt
 from mcprobe.models.conversation import ConversationResult
-from mcprobe.models.judgment import JudgmentResult
+from mcprobe.models.judgment import (
+    JudgmentResult,
+    MCPSuggestion,
+    QualityMetrics,
+    SuggestionCategory,
+    SuggestionSeverity,
+)
 from mcprobe.models.scenario import TestScenario
 from mcprobe.providers.base import LLMProvider, Message
+
+
+class JudgeQualityMetrics(BaseModel):
+    """Quality metrics from judge evaluation."""
+
+    clarification_count: int = 0
+    backtrack_count: int = 0
+    turns_to_first_answer: int = 0
+    final_answer_completeness: float = 0.0
+
+
+class JudgeStructuredSuggestion(BaseModel):
+    """Structured suggestion from judge evaluation."""
+
+    category: str
+    tool_name: str | None = None
+    issue: str
+    suggestion: str
+    severity: str = "medium"
 
 
 class JudgeEvaluation(BaseModel):
@@ -24,6 +49,8 @@ class JudgeEvaluation(BaseModel):
     efficiency_results: dict[str, object]
     reasoning: str
     suggestions: list[str]
+    quality_metrics: JudgeQualityMetrics = Field(default_factory=JudgeQualityMetrics)
+    structured_suggestions: list[JudgeStructuredSuggestion] = Field(default_factory=list)
 
 
 class ConversationJudge:
@@ -107,6 +134,7 @@ class ConversationJudge:
             "prohibited_tools_used": prohibited_used if isinstance(prohibited_used, list) else [],
             "all_required_used": tool_usage.get("all_required_used", False),
             "no_prohibited_used": tool_usage.get("no_prohibited_used", True),
+            "criteria_results": tool_usage.get("criteria_results", {}),
         }
 
         # Build efficiency dict for the result
@@ -117,7 +145,40 @@ class ConversationJudge:
             "total_turns": len(result.turns),
             "max_turns": eval_config.efficiency.max_conversation_turns,
             "within_limits": efficiency.get("within_limits", True),
+            "total_tokens": result.total_tokens,
         }
+
+        # Build quality metrics
+        qm = evaluation.quality_metrics
+        quality_metrics = QualityMetrics(
+            clarification_count=qm.clarification_count,
+            backtrack_count=qm.backtrack_count,
+            turns_to_first_answer=qm.turns_to_first_answer,
+            final_answer_completeness=qm.final_answer_completeness,
+        )
+
+        # Build structured suggestions with validated enums
+        structured_suggestions = []
+        for s in evaluation.structured_suggestions:
+            try:
+                category = SuggestionCategory(s.category)
+            except ValueError:
+                category = SuggestionCategory.DESCRIPTION  # Default fallback
+
+            try:
+                severity = SuggestionSeverity(s.severity)
+            except ValueError:
+                severity = SuggestionSeverity.MEDIUM  # Default fallback
+
+            structured_suggestions.append(
+                MCPSuggestion(
+                    category=category,
+                    tool_name=s.tool_name,
+                    issue=s.issue,
+                    suggestion=s.suggestion,
+                    severity=severity,
+                )
+            )
 
         return JudgmentResult(
             passed=evaluation.passed,
@@ -128,4 +189,6 @@ class ConversationJudge:
             efficiency_results=efficiency_dict,
             reasoning=evaluation.reasoning,
             suggestions=evaluation.suggestions,
+            quality_metrics=quality_metrics,
+            structured_suggestions=structured_suggestions,
         )

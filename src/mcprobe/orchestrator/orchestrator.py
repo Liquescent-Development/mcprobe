@@ -82,6 +82,7 @@ class ConversationOrchestrator:
         start_time = time.time()
         turns: list[ConversationTurn] = []
         all_tool_calls: list[ToolCall] = []
+        total_tokens = 0
         max_turns = scenario.synthetic_user.max_turns
         termination_reason = TerminationReason.MAX_TURNS
         final_answer = ""
@@ -138,6 +139,9 @@ class ConversationOrchestrator:
                 msg = f"Synthetic user failed to respond: {e}"
                 raise OrchestrationError(msg) from e
 
+            # Aggregate token usage from synthetic user
+            total_tokens += user_response.tokens_used
+
             # Check if user is satisfied
             if user_response.is_satisfied:
                 final_answer = agent_response.message
@@ -184,7 +188,7 @@ class ConversationOrchestrator:
             turns=turns,
             final_answer=final_answer,
             total_tool_calls=all_tool_calls,
-            total_tokens=0,  # Would need token counting from providers
+            total_tokens=total_tokens,
             duration_seconds=duration,
             termination_reason=termination_reason,
         )
