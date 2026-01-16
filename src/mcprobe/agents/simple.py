@@ -38,9 +38,7 @@ class SimpleLLMAgent(AgentUnderTest):
 
         # Add system prompt if provided
         if system_prompt:
-            self._conversation_history.append(
-                Message(role="system", content=system_prompt)
-            )
+            self._conversation_history.append(Message(role="system", content=system_prompt))
 
     async def send_message(self, message: str) -> AgentResponse:
         """Send a user message and get the agent's response.
@@ -90,9 +88,7 @@ class SimpleLLMAgent(AgentUnderTest):
 
         # Re-add system prompt if it was set
         if self._system_prompt:
-            self._conversation_history.append(
-                Message(role="system", content=self._system_prompt)
-            )
+            self._conversation_history.append(Message(role="system", content=self._system_prompt))
 
     def get_available_tools(self) -> list[dict[str, object]]:
         """Return empty list - simple agent has no tools."""

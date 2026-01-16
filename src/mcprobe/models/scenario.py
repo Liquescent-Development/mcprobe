@@ -54,9 +54,7 @@ class SyntheticUserConfig(BaseModel):
 
     persona: str = Field(..., min_length=1)
     initial_query: str = Field(..., min_length=1)
-    clarification_behavior: ClarificationBehavior = Field(
-        default_factory=ClarificationBehavior
-    )
+    clarification_behavior: ClarificationBehavior = Field(default_factory=ClarificationBehavior)
     max_turns: int = Field(default=10, ge=1, le=100)
 
 

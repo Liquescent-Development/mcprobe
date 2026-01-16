@@ -152,14 +152,8 @@ def build_judge_prompt(
     user_config = scenario.synthetic_user
 
     # Format tool usage info
-    required_tools = (
-        ", ".join(evaluation.tool_usage.required_tools)
-        or "None"
-    )
-    prohibited_tools = (
-        ", ".join(evaluation.tool_usage.prohibited_tools)
-        or "None"
-    )
+    required_tools = ", ".join(evaluation.tool_usage.required_tools) or "None"
+    prohibited_tools = ", ".join(evaluation.tool_usage.prohibited_tools) or "None"
 
     # Format efficiency limits
     max_tool_calls = evaluation.efficiency.max_tool_calls or "No limit"

@@ -84,13 +84,9 @@ def build_synthetic_user_prompt(config: SyntheticUserConfig) -> str:
     behavior = config.clarification_behavior
     traits = behavior.traits
 
-    known_facts_str = (
-        "\n".join(f"- {fact}" for fact in behavior.known_facts)
-        or "None specified"
-    )
+    known_facts_str = "\n".join(f"- {fact}" for fact in behavior.known_facts) or "None specified"
     unknown_facts_str = (
-        "\n".join(f"- {fact}" for fact in behavior.unknown_facts)
-        or "None specified"
+        "\n".join(f"- {fact}" for fact in behavior.unknown_facts) or "None specified"
     )
 
     patience_threshold = PATIENCE_THRESHOLDS.get(traits.patience.value, 3)
