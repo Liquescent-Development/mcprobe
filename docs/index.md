@@ -174,14 +174,14 @@ Reasoning: The agent provided a warm greeting and clearly offered assistance...
 
 ## Community & Support
 
-- **GitHub**: [github.com/your-org/mcprobe](https://github.com/your-org/mcprobe)
+- **GitHub**: [github.com/Liquescent-Development/mcprobe](https://github.com/Liquescent-Development/mcprobe)
 - **Issues**: Report bugs and request features
 - **Discussions**: Share scenarios and best practices
 - **Contributing**: See CONTRIBUTING.md
 
 ## License
 
-MCProbe is released under the GPL-3.0 license. See LICENSE for details.
+MCProbe is released under the AGPL-3.0 license. See LICENSE for details.
 
 ## Next Steps
 

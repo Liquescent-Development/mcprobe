@@ -1424,6 +1424,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+    { name = "mcp" },
     { name = "ollama" },
     { name = "pydantic" },
     { name = "pyyaml" },
@@ -1454,6 +1455,7 @@ requires-dist = [
     { name = "google-adk", marker = "extra == 'adk'", specifier = ">=1.22.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", marker = "extra == 'reporting'", specifier = ">=3.1" },
+    { name = "mcp", specifier = ">=1.25.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "ollama", specifier = ">=0.4" },
     { name = "pydantic", specifier = ">=2.5" },
