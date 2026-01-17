@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -33,6 +34,18 @@ from mcprobe.synthetic_user.user import SyntheticUserLLM
 if TYPE_CHECKING:
     from mcprobe.models.conversation import ConversationResult
     from mcprobe.models.judgment import JudgmentResult
+
+
+@dataclass
+class ScenarioRunConfig:
+    """Configuration for running a single scenario."""
+
+    model: str
+    base_url: str
+    agent_type: str
+    agent_factory_path: str | None
+    save_results: bool
+    results_dir: Path
 
 
 class MCProbeFile(pytest.File):
@@ -74,53 +87,50 @@ class MCProbeItem(pytest.Item):
         self.conversation_result: ConversationResult | None = None
         self.judgment_result: JudgmentResult | None = None
 
-        # Add markers for each tag
+        # Add mcprobe marker and tag-based markers for filtering
+        self.add_marker(pytest.mark.mcprobe)
         for tag in scenario.tags:
-            self.add_marker(pytest.mark.mcprobe)
+            # Tags become pytest markers for filtering (e.g., pytest -m smoke)
             self.add_marker(getattr(pytest.mark, tag))
 
     def runtest(self) -> None:
         """Execute the test scenario."""
         # Get configuration from pytest options
-        config = self.config
-        model = config.getoption("--mcprobe-model") or "llama3.2"
-        base_url = config.getoption("--mcprobe-base-url") or "http://localhost:11434"
-        agent_type = config.getoption("--mcprobe-agent-type") or "simple"
-        save_results = config.getoption("--mcprobe-save-results")
-        results_dir = Path(config.getoption("--mcprobe-results-dir") or "test-results")
-
-        # Run the scenario
-        asyncio.get_event_loop().run_until_complete(
-            self._run_scenario(model, base_url, agent_type, save_results, results_dir)
+        pytest_config = self.config
+        run_config = ScenarioRunConfig(
+            model=pytest_config.getoption("--mcprobe-model") or "llama3.2",
+            base_url=pytest_config.getoption("--mcprobe-base-url") or "http://localhost:11434",
+            agent_type=pytest_config.getoption("--mcprobe-agent-type") or "simple",
+            agent_factory_path=pytest_config.getoption("--mcprobe-agent-factory"),
+            save_results=pytest_config.getoption("--mcprobe-save-results"),
+            results_dir=Path(pytest_config.getoption("--mcprobe-results-dir") or "test-results"),
         )
 
-    async def _run_scenario(
-        self,
-        model: str,
-        base_url: str,
-        agent_type: str,
-        save_results: bool,
-        results_dir: Path,
-    ) -> None:
+        # Run the scenario
+        asyncio.run(self._run_scenario(run_config))
+
+    async def _run_scenario(self, config: ScenarioRunConfig) -> None:
         """Run the scenario asynchronously.
 
         Args:
-            model: LLM model name.
-            base_url: Ollama base URL.
-            agent_type: Type of agent (simple or adk).
-            save_results: Whether to save results.
-            results_dir: Directory to save results.
+            config: Configuration for running the scenario.
         """
         # Create LLM config
-        llm_config = LLMConfig(provider="ollama", model=model, base_url=base_url)
+        llm_config = LLMConfig(provider="ollama", model=config.model, base_url=config.base_url)
         provider = create_provider(llm_config)
 
         # Create agent
         agent: AgentUnderTest
-        if agent_type == "adk":
-            msg = "ADK agent type requires --mcprobe-agent-factory"
-            raise MCProbeError(msg)
-        agent = SimpleLLMAgent(provider)
+        if config.agent_type == "adk":
+            if config.agent_factory_path is None:
+                msg = "ADK agent type requires --mcprobe-agent-factory"
+                raise MCProbeError(msg)
+            agent = self._create_adk_agent(config.agent_factory_path)
+        else:
+            agent = SimpleLLMAgent(provider)
+
+        # Reset agent for new scenario
+        await agent.reset()
 
         # Create components
         synthetic_user = SyntheticUserLLM(provider, self.scenario.synthetic_user)
@@ -131,8 +141,8 @@ class MCProbeItem(pytest.Item):
         self.conversation_result, self.judgment_result = await orchestrator.run(self.scenario)
 
         # Save results if enabled
-        if save_results:
-            await self._save_results(results_dir, model, agent_type)
+        if config.save_results:
+            await self._save_results(config.results_dir, config.model, config.agent_type)
 
         # Assert the test passed
         if not self.judgment_result.passed:
@@ -142,6 +152,24 @@ class MCProbeItem(pytest.Item):
                 self.conversation_result,
                 self.judgment_result,
             )
+
+    def _create_adk_agent(self, factory_path: str) -> AgentUnderTest:
+        """Create an ADK agent from a factory module.
+
+        Args:
+            factory_path: Path to the agent factory module.
+
+        Returns:
+            Configured ADK agent wrapper.
+        """
+        from mcprobe.agents.adk import (  # noqa: PLC0415
+            GeminiADKAgent,
+            load_agent_factory,
+        )
+
+        factory = load_agent_factory(factory_path)
+        adk_agent = factory()
+        return GeminiADKAgent(adk_agent)
 
     async def _save_results(
         self,
@@ -327,6 +355,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Agent type: simple or adk (default: simple)",
     )
     group.addoption(
+        "--mcprobe-agent-factory",
+        action="store",
+        default=None,
+        help="Path to Python module with create_agent() function (required for adk type)",
+    )
+    group.addoption(
         "--mcprobe-save-results",
         action="store_true",
         default=True,
@@ -377,6 +411,11 @@ def pytest_configure(config: pytest.Config) -> None:
         config: pytest configuration.
     """
     config.addinivalue_line("markers", "mcprobe: mark test as an MCProbe scenario test")
+    # Suppress warnings for dynamic scenario tag markers
+    config.addinivalue_line(
+        "filterwarnings",
+        "ignore::pytest.PytestUnknownMarkWarning",
+    )
 
 
 def pytest_collection_modifyitems(
