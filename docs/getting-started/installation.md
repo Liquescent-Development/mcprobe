@@ -91,7 +91,7 @@ If you're contributing to MCProbe or want to run from source:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/mcprobe.git
+git clone https://github.com/Liquescent-Development/mcprobe.git
 cd mcprobe
 
 # Create virtual environment

@@ -3,7 +3,7 @@ name = "mcprobe"
 version = "0.1.0"
 description = "A testing framework that validates MCP servers provide sufficient information for LLM agents to answer real-world questions correctly"
 readme = "README.md"
-license = {text = "GPL-3.0"}
+license = {text = "AGPL-3.0"}
 requires-python = ">=3.11"
 authors = [
     {name = "MCProbe Contributors"}
@@ -12,7 +12,7 @@ keywords = ["mcp", "testing", "llm", "agents", "model-context-protocol"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -27,6 +27,7 @@ dependencies = [
     "rich>=13.0",
     "httpx>=0.27",
     "ollama>=0.4",
+    "mcp>=1.25.0",
 ]
 
 [project.optional-dependencies]
@@ -95,7 +96,7 @@ ignore = []
 known-first-party = ["mcprobe"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["PLR2004"]  # Allow magic values in tests for clarity
+"tests/**/*.py" = ["PLR2004", "PLC0415"]  # Allow magic values and local imports in tests for clarity
 
 [tool.mypy]
 python_version = "3.11"
@@ -115,6 +116,7 @@ module = [
     "ollama.*",
     "google.adk.*",
     "google.genai.*",
+    "mcp.*",
 ]
 ignore_missing_imports = true
 
