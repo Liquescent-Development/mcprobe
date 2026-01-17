@@ -148,10 +148,16 @@ class SyntheticUserLLM:
             "completion_tokens", 0
         )
 
-        # Add our response to history
-        self._conversation_history.append(Message(role="user", content=response.content))
+        content = response.content.strip()
 
-        return response.content
+        # Handle empty responses - indicate satisfaction instead of sending empty message
+        if not content:
+            content = "Thanks, that answers my question."
+
+        # Add our response to history
+        self._conversation_history.append(Message(role="user", content=content))
+
+        return content
 
     async def _check_satisfaction(self, assistant_response: str) -> bool:
         """Check if the user would be satisfied with the response.
