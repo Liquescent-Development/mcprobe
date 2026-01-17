@@ -32,6 +32,8 @@ from mcprobe.providers.base import LLMProvider
 from mcprobe.providers.factory import ProviderRegistry, create_provider
 from mcprobe.synthetic_user.user import SyntheticUserLLM
 
+DEFAULT_RESULTS_DIR = "test-results"
+
 app = typer.Typer(
     name="mcprobe",
     help="Conversational MCP server testing framework.",
@@ -557,6 +559,347 @@ async def _generate_scenarios_async(  # noqa: PLR0913 - CLI helper needs multipl
         console.print(f"  [dim]Created:[/dim] {filepath}")
 
     console.print(f"\n[green]Scenarios written to {output}[/green]")
+
+
+@app.command()
+def report(
+    results_dir: Annotated[
+        Path,
+        typer.Option(
+            "--results-dir",
+            "-d",
+            help="Directory containing test results.",
+        ),
+    ] = Path(DEFAULT_RESULTS_DIR),
+    output: Annotated[
+        Path,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Output file path for the report.",
+        ),
+    ] = Path("report.html"),
+    report_format: Annotated[
+        str,
+        typer.Option(
+            "--format",
+            "-f",
+            help="Report format: html, json, or junit.",
+        ),
+    ] = "html",
+    title: Annotated[
+        str,
+        typer.Option(
+            "--title",
+            "-t",
+            help="Title for the report.",
+        ),
+    ] = "MCProbe Test Report",
+    limit: Annotated[
+        int,
+        typer.Option(
+            "--limit",
+            "-n",
+            help="Maximum number of results to include.",
+        ),
+    ] = 100,
+) -> None:
+    """Generate a report from stored test results.
+
+    Reads test results from the results directory and generates
+    a report in the specified format.
+
+    Example:
+        mcprobe report --format html --output report.html
+    """
+    from mcprobe.persistence import ResultLoader  # noqa: PLC0415
+    from mcprobe.reporting import (  # noqa: PLC0415
+        HtmlReportGenerator,
+        JsonReportGenerator,
+        JunitReportGenerator,
+    )
+
+    if not results_dir.exists():
+        console.print(f"[red]Error:[/red] Results directory not found: {results_dir}")
+        raise typer.Exit(code=1)
+
+    loader = ResultLoader(results_dir)
+    results = loader.load_all(limit=limit)
+
+    if not results:
+        console.print("[yellow]No test results found.[/yellow]")
+        raise typer.Exit(code=0)
+
+    console.print(f"[blue]Found {len(results)} test result(s)[/blue]")
+
+    # Generate report based on format
+    if report_format == "html":
+        html_generator = HtmlReportGenerator()
+        html_generator.generate(results, output, title=title)
+    elif report_format == "json":
+        json_generator = JsonReportGenerator()
+        json_generator.generate(results, output)
+    elif report_format == "junit":
+        junit_generator = JunitReportGenerator()
+        junit_generator.generate(results, output, suite_name=title)
+    else:
+        console.print(f"[red]Error:[/red] Unknown format: {report_format}")
+        console.print("Valid options: html, json, junit")
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]Report generated: {output}[/green]")
+
+
+@app.command()
+def trends(
+    scenario: Annotated[
+        str | None,
+        typer.Option(
+            "--scenario",
+            "-s",
+            help="Scenario name to analyze (all if not specified).",
+        ),
+    ] = None,
+    window: Annotated[
+        int,
+        typer.Option(
+            "--window",
+            "-w",
+            help="Number of recent runs to consider.",
+        ),
+    ] = 10,
+    results_dir: Annotated[
+        Path,
+        typer.Option(
+            "--results-dir",
+            "-d",
+            help="Directory containing test results.",
+        ),
+    ] = Path(DEFAULT_RESULTS_DIR),
+) -> None:
+    """Show trend analysis for test scenarios.
+
+    Analyzes historical test results to detect trends in pass rates
+    and scores over time.
+
+    Example:
+        mcprobe trends --scenario "my-test" --window 20
+    """
+    from mcprobe.analysis import TrendAnalyzer, TrendDirection  # noqa: PLC0415
+    from mcprobe.persistence import ResultLoader  # noqa: PLC0415
+
+    if not results_dir.exists():
+        console.print(f"[red]Error:[/red] Results directory not found: {results_dir}")
+        raise typer.Exit(code=1)
+
+    loader = ResultLoader(results_dir)
+    analyzer = TrendAnalyzer(loader)
+
+    if scenario:
+        # Analyze single scenario
+        trends_result = analyzer.analyze_scenario(scenario, window)
+        if trends_result is None:
+            console.print(f"[yellow]Insufficient data for scenario: {scenario}[/yellow]")
+            raise typer.Exit(code=0)
+        all_trends = [trends_result]
+    else:
+        # Analyze all scenarios
+        all_trends = analyzer.analyze_all(window)
+
+    if not all_trends:
+        console.print("[yellow]No trend data available.[/yellow]")
+        raise typer.Exit(code=0)
+
+    # Display trends table
+    table = Table(title="Trend Analysis")
+    table.add_column("Scenario", style="cyan")
+    table.add_column("Runs", justify="right")
+    table.add_column("Pass Rate", justify="right")
+    table.add_column("Pass Trend", justify="center")
+    table.add_column("Avg Score", justify="right")
+    table.add_column("Score Trend", justify="center")
+
+    for t in all_trends:
+        pass_trend_style = {
+            TrendDirection.IMPROVING: "[green]↑[/green]",
+            TrendDirection.DEGRADING: "[red]↓[/red]",
+            TrendDirection.STABLE: "[dim]→[/dim]",
+        }
+        score_trend_style = pass_trend_style
+
+        table.add_row(
+            t.scenario_name,
+            str(t.run_count),
+            f"{t.pass_rate:.0%}",
+            pass_trend_style[t.pass_trend],
+            f"{t.avg_score:.2f}",
+            score_trend_style[t.score_trend],
+        )
+
+    console.print(table)
+
+    # Check for regressions
+    regressions = analyzer.detect_regressions()
+    if regressions:
+        console.print("\n[yellow]⚠ Detected Regressions:[/yellow]")
+        for r in regressions:
+            severity_color = {"low": "blue", "medium": "yellow", "high": "red"}.get(
+                r.severity, "white"
+            )
+            console.print(
+                f"  [{severity_color}][{r.severity}][/{severity_color}] "
+                f"{r.scenario_name}: {r.metric} dropped "
+                f"{r.change_percent:.1f}%"
+            )
+
+
+@app.command()
+def flaky(
+    min_runs: Annotated[
+        int,
+        typer.Option(
+            "--min-runs",
+            "-n",
+            help="Minimum runs required for analysis.",
+        ),
+    ] = 5,
+    results_dir: Annotated[
+        Path,
+        typer.Option(
+            "--results-dir",
+            "-d",
+            help="Directory containing test results.",
+        ),
+    ] = Path(DEFAULT_RESULTS_DIR),
+    fail_on_flaky: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-flaky",
+            help="Exit with error code if flaky tests are detected.",
+        ),
+    ] = False,
+) -> None:
+    """Detect flaky (inconsistent) test scenarios.
+
+    Identifies scenarios with inconsistent pass/fail results or
+    high score variance.
+
+    Example:
+        mcprobe flaky --min-runs 10 --fail-on-flaky
+    """
+    from mcprobe.analysis import FlakyDetector  # noqa: PLC0415
+    from mcprobe.persistence import ResultLoader  # noqa: PLC0415
+
+    if not results_dir.exists():
+        console.print(f"[red]Error:[/red] Results directory not found: {results_dir}")
+        raise typer.Exit(code=1)
+
+    loader = ResultLoader(results_dir)
+    detector = FlakyDetector(loader)
+
+    flaky_scenarios = detector.detect_flaky_scenarios(min_runs=min_runs)
+
+    if not flaky_scenarios:
+        console.print("[green]No flaky scenarios detected.[/green]")
+        raise typer.Exit(code=0)
+
+    # Display flaky scenarios
+    table = Table(title="Flaky Scenarios")
+    table.add_column("Scenario", style="cyan")
+    table.add_column("Pass Rate", justify="right")
+    table.add_column("Runs", justify="right")
+    table.add_column("Severity", justify="center")
+    table.add_column("Reason")
+
+    for f in flaky_scenarios:
+        severity_color = {"low": "blue", "medium": "yellow", "high": "red"}.get(
+            f.severity, "white"
+        )
+        table.add_row(
+            f.scenario_name,
+            f"{f.pass_rate:.0%}",
+            str(f.run_count),
+            f"[{severity_color}]{f.severity}[/{severity_color}]",
+            f.reason,
+        )
+
+    console.print(table)
+    console.print(f"\n[yellow]Found {len(flaky_scenarios)} flaky scenario(s)[/yellow]")
+
+    if fail_on_flaky:
+        raise typer.Exit(code=1)
+
+
+@app.command(name="stability-check")
+def stability_check(
+    scenario: Annotated[
+        str,
+        typer.Argument(help="Scenario name to check."),
+    ],
+    min_runs: Annotated[
+        int,
+        typer.Option(
+            "--min-runs",
+            "-n",
+            help="Minimum runs required for analysis.",
+        ),
+    ] = 5,
+    results_dir: Annotated[
+        Path,
+        typer.Option(
+            "--results-dir",
+            "-d",
+            help="Directory containing test results.",
+        ),
+    ] = Path(DEFAULT_RESULTS_DIR),
+) -> None:
+    """Check stability of a specific scenario.
+
+    Returns detailed stability metrics for the specified scenario.
+
+    Example:
+        mcprobe stability-check "my-test-scenario"
+    """
+    from mcprobe.analysis import FlakyDetector  # noqa: PLC0415
+    from mcprobe.persistence import ResultLoader  # noqa: PLC0415
+
+    if not results_dir.exists():
+        console.print(f"[red]Error:[/red] Results directory not found: {results_dir}")
+        raise typer.Exit(code=1)
+
+    loader = ResultLoader(results_dir)
+    detector = FlakyDetector(loader)
+
+    result = detector.stability_check(scenario, min_runs=min_runs)
+
+    console.print(Panel(f"[bold]Stability Check: {scenario}[/bold]"))
+
+    if result["is_stable"] is None:
+        console.print(f"[yellow]{result['reason']}[/yellow]")
+        console.print(f"Run count: {result['run_count']} (need at least {min_runs})")
+        raise typer.Exit(code=0)
+
+    # Display metrics
+    table = Table(show_header=False)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", justify="right")
+
+    table.add_row("Run Count", str(result["run_count"]))
+    table.add_row("Pass Rate", f"{result['pass_rate']:.0%}")
+    table.add_row("Mean Score", f"{result['mean_score']:.2f}")
+    table.add_row("Score Std Dev", f"{result['score_std']:.3f}")
+
+    console.print(table)
+
+    # Display stability status
+    if result["is_stable"]:
+        console.print("\n[green]✓ Scenario is stable[/green]")
+    else:
+        console.print("\n[red]✗ Scenario is unstable[/red]")
+        reasons = result["reasons"]
+        if isinstance(reasons, list):
+            for reason in reasons:
+                console.print(f"  - {reason}")
 
 
 def main() -> None:
