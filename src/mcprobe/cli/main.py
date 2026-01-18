@@ -21,9 +21,9 @@ from rich.table import Table
 
 from mcprobe.agents.base import AgentUnderTest
 from mcprobe.agents.simple import SimpleLLMAgent
+from mcprobe.config import AgentConfig, CLIOverrides, ConfigLoader, FileConfig
 from mcprobe.exceptions import MCProbeError
 from mcprobe.judge.judge import ConversationJudge
-from mcprobe.models.config import LLMConfig
 from mcprobe.models.conversation import ConversationResult
 from mcprobe.models.judgment import JudgmentResult
 from mcprobe.orchestrator.orchestrator import ConversationOrchestrator
@@ -48,19 +48,13 @@ class RunConfig:
     """Configuration for a test run."""
 
     scenario_path: Path
-    model: str
-    base_url: str
-    agent_type: str
-    agent_factory: Path | None
+    file_config: FileConfig | None
+    provider: str | None
+    model: str | None
+    base_url: str | None
+    cli_agent_type: str | None
+    cli_agent_factory: Path | None
     verbose: bool
-
-
-@dataclass
-class AgentConfig:
-    """Configuration for agent creation."""
-
-    agent_type: str
-    agent_factory: Path | None
 
 
 @app.command()
@@ -72,36 +66,52 @@ def run(  # noqa: PLR0913 - Typer requires CLI args as function parameters
             exists=True,
         ),
     ],
+    config_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to mcprobe.yaml configuration file.",
+        ),
+    ] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option(
+            "--provider",
+            "-p",
+            help="LLM provider (e.g., 'ollama', 'openai').",
+        ),
+    ] = None,
     model: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--model",
             "-m",
             help="Model name for LLM components (synthetic user and judge).",
         ),
-    ] = "llama3.2",
+    ] = None,
     base_url: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--base-url",
             "-u",
-            help="Base URL for Ollama API.",
+            help="Base URL for LLM API.",
         ),
-    ] = "http://localhost:11434",
+    ] = None,
     agent_type: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--agent-type",
             "-t",
-            help="Agent type: 'simple' (Ollama LLM) or 'adk' (Gemini ADK with MCP).",
+            help="Agent type: 'simple' or 'adk'. Overrides config file.",
         ),
-    ] = "simple",
+    ] = None,
     agent_factory: Annotated[
         Path | None,
         typer.Option(
             "--agent-factory",
             "-f",
-            help="Path to Python module with create_agent() function (required for 'adk' type).",
+            help="Path to Python module with create_agent() function. Overrides config file.",
         ),
     ] = None,
     verbose: Annotated[
@@ -123,27 +133,47 @@ def run(  # noqa: PLR0913 - Typer requires CLI args as function parameters
 
     For ADK agents with MCP tools:
         mcprobe run scenario.yaml -t adk -f my_agent_factory.py
+
+    With config file:
+        mcprobe run scenario.yaml --config mcprobe.yaml
     """
+    # Load configuration file if available
+    try:
+        file_config = ConfigLoader.load_config(config_file)
+    except MCProbeError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from e
+
+    # Resolve agent configuration (config file + CLI overrides)
+    resolved_agent = ConfigLoader.resolve_agent_config(
+        file_config,
+        cli_agent_type=agent_type,
+        cli_agent_factory=str(agent_factory) if agent_factory else None,
+    )
+
     # Validate agent configuration
-    if agent_type == "adk" and agent_factory is None:
-        console.print("[red]Error:[/red] --agent-factory is required for ADK agent type")
+    if resolved_agent.type == "adk" and resolved_agent.factory is None:
+        console.print("[red]Error:[/red] Agent factory is required for ADK agent type")
+        console.print("Set 'agent.factory' in config file or use --agent-factory")
         raise typer.Exit(code=1)
 
-    if agent_type not in ("simple", "adk"):
-        console.print(f"[red]Error:[/red] Unknown agent type: {agent_type}")
+    if resolved_agent.type not in ("simple", "adk"):
+        console.print(f"[red]Error:[/red] Unknown agent type: {resolved_agent.type}")
         raise typer.Exit(code=1)
 
-    config = RunConfig(
+    run_config = RunConfig(
         scenario_path=scenario_path,
+        file_config=file_config,
+        provider=provider,
         model=model,
         base_url=base_url,
-        agent_type=agent_type,
-        agent_factory=agent_factory,
+        cli_agent_type=agent_type,
+        cli_agent_factory=agent_factory,
         verbose=verbose,
     )
 
     try:
-        asyncio.run(_run_scenarios(config))
+        asyncio.run(_run_scenarios(run_config))
     except MCProbeError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1) from e
@@ -153,23 +183,23 @@ def _create_agent(agent_config: AgentConfig, provider: LLMProvider) -> AgentUnde
     """Create the agent under test based on configuration.
 
     Args:
-        agent_config: Agent configuration.
+        agent_config: Agent configuration (from config file + CLI overrides).
         provider: LLM provider for simple agents.
 
     Returns:
         Configured agent instance.
     """
-    if agent_config.agent_type == "adk":
+    if agent_config.type == "adk":
         from mcprobe.agents.adk import (  # noqa: PLC0415
             GeminiADKAgent,
             load_agent_factory,
         )
 
-        if agent_config.agent_factory is None:
-            msg = "--agent-factory is required for ADK agent type"
+        if agent_config.factory is None:
+            msg = "Agent factory is required for ADK agent type"
             raise MCProbeError(msg)
 
-        factory = load_agent_factory(str(agent_config.agent_factory))
+        factory = load_agent_factory(agent_config.factory)
         adk_agent = factory()
         return GeminiADKAgent(adk_agent)
 
@@ -194,20 +224,34 @@ async def _run_scenarios(config: RunConfig) -> None:
         console.print("[yellow]No scenarios found.[/yellow]")
         return
 
-    console.print(f"[blue]Found {len(scenarios)} scenario(s)[/blue]")
-    console.print(f"[blue]Agent type: {config.agent_type}[/blue]\n")
+    # Resolve agent configuration
+    agent_config = ConfigLoader.resolve_agent_config(
+        config.file_config,
+        cli_agent_type=config.cli_agent_type,
+        cli_agent_factory=str(config.cli_agent_factory) if config.cli_agent_factory else None,
+    )
 
-    # Create LLM config for synthetic user and judge
-    llm_config = LLMConfig(provider="ollama", model=config.model, base_url=config.base_url)
+    console.print(f"[blue]Found {len(scenarios)} scenario(s)[/blue]")
+    console.print(f"[blue]Agent type: {agent_config.type}[/blue]\n")
+
+    # Resolve LLM config for synthetic user and judge (they share the same config)
+    cli_overrides = CLIOverrides(
+        provider=config.provider,
+        model=config.model,
+        base_url=config.base_url,
+    )
+    llm_config = ConfigLoader.resolve_llm_config(
+        config.file_config,
+        "synthetic_user",
+        cli_overrides,
+    )
+
+    console.print(f"[blue]Provider: {llm_config.provider}, Model: {llm_config.model}[/blue]\n")
 
     # Create provider for synthetic user and judge
     provider = create_provider(llm_config)
 
     # Create agent based on type
-    agent_config = AgentConfig(
-        agent_type=config.agent_type,
-        agent_factory=config.agent_factory,
-    )
     agent = _create_agent(agent_config, provider)
 
     # Track results
@@ -416,7 +460,6 @@ def generate_scenarios(  # noqa: PLR0913 - Typer requires CLI args as function p
         str,
         typer.Option(
             "--complexity",
-            "-c",
             help="Complexity level: simple, medium, or complex.",
         ),
     ] = "medium",
@@ -428,22 +471,38 @@ def generate_scenarios(  # noqa: PLR0913 - Typer requires CLI args as function p
             help="Number of scenarios to generate.",
         ),
     ] = 10,
+    config_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to mcprobe.yaml configuration file.",
+        ),
+    ] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option(
+            "--provider",
+            "-p",
+            help="LLM provider (e.g., 'ollama', 'openai').",
+        ),
+    ] = None,
     model: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--model",
             "-m",
             help="Model for generation.",
         ),
-    ] = "llama3.2",
+    ] = None,
     base_url: Annotated[
-        str,
+        str | None,
         typer.Option(
             "--base-url",
             "-u",
-            help="Base URL for Ollama API.",
+            help="Base URL for LLM API.",
         ),
-    ] = "http://localhost:11434",
+    ] = None,
 ) -> None:
     """Generate test scenarios from MCP tool schemas.
 
@@ -454,6 +513,13 @@ def generate_scenarios(  # noqa: PLR0913 - Typer requires CLI args as function p
         mcprobe generate-scenarios --server "npx @example/weather-mcp" -o ./scenarios
     """
     from mcprobe.generator import ComplexityLevel  # noqa: PLC0415
+
+    # Load configuration file if available
+    try:
+        file_config = ConfigLoader.load_config(config_file)
+    except MCProbeError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from e
 
     # Validate complexity level
     try:
@@ -470,8 +536,10 @@ def generate_scenarios(  # noqa: PLR0913 - Typer requires CLI args as function p
                 output=output,
                 complexity=complexity_level,
                 count=count,
-                model=model,
-                base_url=base_url,
+                file_config=file_config,
+                cli_provider=provider,
+                cli_model=model,
+                cli_base_url=base_url,
             )
         )
     except MCProbeError as e:
@@ -484,8 +552,10 @@ async def _generate_scenarios_async(  # noqa: PLR0913 - CLI helper needs multipl
     output: Path,
     complexity: ComplexityLevel,
     count: int,
-    model: str,
-    base_url: str,
+    file_config: FileConfig | None,
+    cli_provider: str | None,
+    cli_model: str | None,
+    cli_base_url: str | None,
 ) -> None:
     """Generate scenarios asynchronously.
 
@@ -494,8 +564,10 @@ async def _generate_scenarios_async(  # noqa: PLR0913 - CLI helper needs multipl
         output: Output directory path.
         complexity: Complexity level.
         count: Number of scenarios to generate.
-        model: Model name.
-        base_url: LLM API base URL.
+        file_config: Loaded configuration file, or None.
+        cli_provider: CLI provider override.
+        cli_model: CLI model override.
+        cli_base_url: CLI base URL override.
     """
     import yaml  # noqa: PLC0415
 
@@ -523,8 +595,15 @@ async def _generate_scenarios_async(  # noqa: PLR0913 - CLI helper needs multipl
     for tool in tools.tools:
         console.print(f"  - {tool.name}: {tool.description or 'No description'}")
 
-    # Create LLM provider
-    llm_config = LLMConfig(provider="ollama", model=model, base_url=base_url)
+    # Resolve LLM config
+    cli_overrides = CLIOverrides(
+        provider=cli_provider,
+        model=cli_model,
+        base_url=cli_base_url,
+    )
+    llm_config = ConfigLoader.resolve_llm_config(file_config, "llm", cli_overrides)
+    console.print(f"[blue]Provider: {llm_config.provider}, Model: {llm_config.model}[/blue]")
+
     provider = create_provider(llm_config)
 
     # Generate scenarios

@@ -4,15 +4,253 @@ This document provides detailed information about all configuration options avai
 
 ## Overview
 
-MCProbe configuration consists of three main components:
-- **LLM Configuration**: Settings for language model providers
+MCProbe configuration consists of four main components:
+- **Agent Configuration**: Settings for the agent under test (the system being tested)
+- **LLM Configuration**: Settings for language model providers (judge and synthetic user)
 - **Orchestrator Configuration**: Conversation flow control settings
 - **MCProbe Configuration**: Complete system configuration combining all components
 
+### Understanding Component Roles
+
+MCProbe has a clear separation between the **system under test** and the **testing components**:
+
+- **Agent Under Test** (`agent:` section): The MCP server/agent you are testing. This is the subject of the evaluation.
+  - Simple agents use the synthetic_user LLM configuration
+  - ADK agents use their own internal LLM (Gemini) - NOT configurable via MCProbe config
+
+- **MCProbe Testing Components** (configured via `llm:`, `judge:`, `synthetic_user:` sections):
+  - **Judge**: Evaluates the conversation quality and correctness
+  - **Synthetic User**: Simulates realistic user behavior and questions
+  - These components use configurable LLM providers (Ollama, OpenAI, etc.)
+
+This separation allows you to:
+- Test a Gemini-based ADK agent using an OpenAI judge and Ollama synthetic user
+- Mix and match providers for cost optimization (e.g., expensive models for judging, cheaper for synthetic users)
+- Use different providers for different components based on their strengths
+
 Configuration can be provided through:
-1. CLI arguments (highest priority)
-2. Environment variables
-3. Default values (lowest priority)
+1. **CLI arguments** (highest priority)
+2. **Configuration file** (`mcprobe.yaml` or `.mcprobe.yaml`)
+3. **Environment variables**
+4. **Default values** (lowest priority)
+
+## Configuration File
+
+MCProbe supports YAML configuration files for centralized configuration management. The file can be named:
+- `mcprobe.yaml`
+- `.mcprobe.yaml`
+- `mcprobe.yml`
+- `.mcprobe.yml`
+
+### File Discovery
+
+MCProbe automatically discovers configuration files in this order:
+1. **Explicit path** via `--config` CLI option or `--mcprobe-config` pytest option
+2. **Current directory** - checks for config files in order listed above
+3. **No config file** - uses CLI arguments, environment variables, and defaults (silent when not found)
+
+### File Format
+
+```yaml
+# mcprobe.yaml - MCProbe Configuration File
+
+# Agent configuration (the system being tested)
+agent:
+  type: adk  # or "simple"
+  factory: path/to/my_agent.py  # required for ADK agents
+
+# Shared LLM configuration (applies to judge and synthetic user)
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: ${OLLAMA_BASE_URL:-http://localhost:11434}
+  temperature: 0.0
+  max_tokens: 4096
+
+# Component-specific overrides (optional)
+judge:
+  provider: openai
+  model: gpt-4
+  api_key: ${OPENAI_API_KEY}
+
+synthetic_user:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+
+# Orchestrator settings
+orchestrator:
+  max_turns: 10
+  turn_timeout_seconds: 30.0
+  loop_detection_threshold: 3
+
+# Results storage settings
+results:
+  save: true
+  dir: test-results
+```
+
+### Environment Variable Interpolation
+
+Configuration files support environment variable interpolation with two syntaxes:
+
+**Required variable** - Raises error if not set:
+```yaml
+api_key: ${OPENAI_API_KEY}
+```
+
+**Optional variable with default**:
+```yaml
+base_url: ${OLLAMA_BASE_URL:-http://localhost:11434}
+model: ${MODEL_NAME:-llama3.2}
+```
+
+Environment variables are interpolated when the configuration file is loaded, before any validation occurs.
+
+## AgentConfig
+
+Configuration for the agent under test - the system being evaluated by MCProbe.
+
+**Import Path**: `mcprobe.models.config.AgentConfig`
+
+### Fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `type` | `str` | No | `simple` | Agent type: "simple" (LLM-based) or "adk" (Gemini ADK with MCP) |
+| `factory` | `str \| None` | No | `None` | Path to Python module with create_agent() function (required for ADK agents) |
+
+### Agent Types
+
+#### Simple Agent
+
+A basic LLM-based agent that uses the synthetic_user LLM configuration. Suitable for simple conversational testing without tool calling.
+
+**Configuration:**
+```yaml
+agent:
+  type: simple
+```
+
+**Characteristics:**
+- Uses the same LLM provider/model as the synthetic_user
+- No MCP tool calling capabilities
+- Suitable for basic conversation testing
+
+#### ADK Agent
+
+A Gemini ADK agent with full MCP tool support. Requires a factory function that creates the agent instance.
+
+**Configuration:**
+```yaml
+agent:
+  type: adk
+  factory: my_agent_factory.py
+```
+
+**Factory Module Requirements:**
+
+The factory module must export a `create_agent()` function that returns a configured agent:
+
+```python
+# my_agent_factory.py
+from google.genai.agentic import Agent
+
+def create_agent() -> Agent:
+    """Create and return a configured Gemini ADK agent."""
+    return Agent(
+        model="gemini-2.0-flash-exp",
+        tools=[...],  # Your MCP tools
+    )
+```
+
+**Characteristics:**
+- Uses Gemini internally (NOT configurable via MCProbe config file)
+- Full MCP tool calling support
+- Suitable for testing MCP servers with real tool interactions
+
+**Important Notes:**
+- ADK agents always use Gemini regardless of `llm:` configuration
+- The `llm:`, `judge:`, and `synthetic_user:` sections configure the MCProbe evaluation components, not the ADK agent
+- You can test an ADK (Gemini) agent using OpenAI for judging and Ollama for the synthetic user
+
+### Examples
+
+**Simple agent (uses synthetic_user LLM config):**
+```yaml
+agent:
+  type: simple
+
+llm:
+  provider: ollama
+  model: llama3.2
+```
+
+**ADK agent with mixed LLM providers:**
+```yaml
+# Agent under test uses Gemini (via ADK)
+agent:
+  type: adk
+  factory: my_weather_agent.py
+
+# Judge uses OpenAI (more accurate)
+judge:
+  provider: openai
+  model: gpt-4o
+  api_key: ${OPENAI_API_KEY}
+
+# Synthetic user uses Ollama (cost-effective)
+synthetic_user:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+```
+
+**Simple agent with custom LLM:**
+```yaml
+agent:
+  type: simple
+
+synthetic_user:
+  provider: openai
+  model: gpt-4o-mini
+  api_key: ${OPENAI_API_KEY}
+```
+
+### Configuration Priority
+
+When resolving configuration values, MCProbe uses this priority order (highest to lowest):
+
+1. **CLI arguments** - `--provider`, `--model`, `--base-url`, etc.
+2. **Component-specific config** - `judge:`, `synthetic_user:` sections
+3. **Shared LLM config** - `llm:` section
+4. **Environment variables** - Provider-specific variables
+5. **Default values** - Built-in defaults
+
+#### Example Priority Resolution
+
+Given this config file:
+```yaml
+llm:
+  provider: ollama
+  model: llama3.2
+
+judge:
+  model: llama3.1:8b
+```
+
+And this command:
+```bash
+mcprobe run scenario.yaml --model qwen2.5:7b
+```
+
+Resolution for each component:
+- **Judge**: Uses `qwen2.5:7b` (CLI override wins)
+- **Synthetic User**: Uses `qwen2.5:7b` (CLI override wins)
+
+Without CLI override:
+- **Judge**: Uses `llama3.1:8b` (component-specific wins)
+- **Synthetic User**: Uses `llama3.2` (shared config wins)
 
 ## LLMConfig
 
@@ -176,22 +414,18 @@ Global configuration combining all MCProbe components.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `agent` | `LLMConfig` | Yes | - | Configuration for the agent under test |
-| `synthetic_user` | `LLMConfig` | Yes | - | Configuration for the synthetic user |
-| `judge` | `LLMConfig` | Yes | - | Configuration for the judge |
+| `agent` | `AgentConfig` | No | `AgentConfig(type="simple")` | Configuration for the agent under test |
+| `synthetic_user` | `LLMConfig` | Yes | - | Configuration for the synthetic user LLM |
+| `judge` | `LLMConfig` | Yes | - | Configuration for the judge LLM |
 | `orchestrator` | `OrchestratorConfig` | No | `OrchestratorConfig()` | Orchestrator configuration |
 
-### Example
+### Example: Simple Agent
 
 ```python
-from mcprobe.models.config import MCProbeConfig, LLMConfig, OrchestratorConfig
+from mcprobe.models.config import MCProbeConfig, AgentConfig, LLMConfig, OrchestratorConfig
 
 config = MCProbeConfig(
-    agent=LLMConfig(
-        provider="ollama",
-        model="llama3.2",
-        base_url="http://localhost:11434"
-    ),
+    agent=AgentConfig(type="simple"),
     synthetic_user=LLMConfig(
         provider="ollama",
         model="llama3.2",
@@ -205,6 +439,32 @@ config = MCProbeConfig(
     orchestrator=OrchestratorConfig(
         max_turns=15,
         turn_timeout_seconds=45.0
+    )
+)
+```
+
+### Example: ADK Agent with Mixed Providers
+
+```python
+from mcprobe.models.config import MCProbeConfig, AgentConfig, LLMConfig
+
+config = MCProbeConfig(
+    # Agent under test: Gemini ADK with MCP tools
+    agent=AgentConfig(
+        type="adk",
+        factory="my_agent_factory.py"
+    ),
+    # Synthetic user: Cost-effective Ollama
+    synthetic_user=LLMConfig(
+        provider="ollama",
+        model="llama3.2",
+        base_url="http://localhost:11434"
+    ),
+    # Judge: Accurate OpenAI model
+    judge=LLMConfig(
+        provider="openai",
+        model="gpt-4",
+        api_key="sk-..."
     )
 )
 ```
@@ -243,33 +503,150 @@ export OPENAI_API_KEY=your-azure-key
 # Use config file or programmatic configuration for base_url
 ```
 
-## Configuration Precedence
+## Complete Configuration Examples
 
-MCProbe follows this precedence order when resolving configuration values:
+### Local Development with Ollama
 
-1. **CLI Arguments** (highest priority)
-   - `--model`, `--base-url`, etc.
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+  temperature: 0.0
 
-2. **Environment Variables**
-   - Provider-specific variables like `OLLAMA_BASE_URL`
+orchestrator:
+  max_turns: 15
+  turn_timeout_seconds: 45.0
 
-3. **Default Values** (lowest priority)
-   - Built-in defaults from Pydantic models
-
-### Example
-
-```bash
-# Environment variable sets default
-export OLLAMA_BASE_URL=http://ollama-server:11434
-
-# CLI argument overrides environment variable
-mcprobe run scenario.yaml --base-url http://localhost:11434
-# Result: Uses http://localhost:11434
+results:
+  save: true
+  dir: test-results
 ```
 
-## Common Configuration Patterns
+### Production with OpenAI
 
-### Development Setup
+```yaml
+# mcprobe.yaml
+llm:
+  provider: openai
+  model: gpt-4
+  api_key: ${OPENAI_API_KEY}
+  temperature: 0.0
+
+results:
+  save: true
+  dir: ci-test-results
+```
+
+### Mixed Providers (Testing ADK agent with different LLMs)
+
+```yaml
+# mcprobe.yaml
+# Agent under test: Gemini ADK with MCP tools
+agent:
+  type: adk
+  factory: my_weather_agent.py
+
+# Default to local Ollama for MCProbe components
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+
+# Use OpenAI for judge (more accurate evaluations)
+judge:
+  provider: openai
+  model: gpt-4
+  api_key: ${OPENAI_API_KEY}
+
+# Use local Ollama for synthetic user (cost-effective)
+synthetic_user:
+  provider: ollama
+  model: llama3.2
+```
+
+**Key Points:**
+- The ADK agent uses Gemini internally (not affected by `llm:` config)
+- The judge uses OpenAI for accurate evaluation
+- The synthetic user uses Ollama to minimize costs
+- This demonstrates full flexibility in mixing providers
+
+### Self-Hosted vLLM Endpoint
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: openai
+  model: meta-llama/Llama-3.1-8B-Instruct
+  api_key: dummy  # vLLM doesn't require real API key
+  base_url: ${VLLM_ENDPOINT:-http://localhost:8000/v1}
+  temperature: 0.0
+  max_tokens: 8192
+```
+
+### Development with Environment Variables
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ${LLM_PROVIDER:-ollama}
+  model: ${LLM_MODEL:-llama3.2}
+  base_url: ${LLM_BASE_URL:-http://localhost:11434}
+  api_key: ${LLM_API_KEY}  # Optional, only if provider needs it
+  temperature: 0.0
+
+orchestrator:
+  max_turns: ${MAX_TURNS:-10}
+  turn_timeout_seconds: 30.0
+
+results:
+  save: ${SAVE_RESULTS:-true}
+  dir: ${RESULTS_DIR:-test-results}
+```
+
+## Using Configuration Files
+
+### CLI Usage
+
+**Explicit config file path**:
+```bash
+mcprobe run scenario.yaml --config mcprobe.yaml
+```
+
+**Auto-discovery** (checks current directory):
+```bash
+# MCProbe will automatically find mcprobe.yaml or .mcprobe.yaml
+mcprobe run scenario.yaml
+```
+
+**Override config with CLI arguments**:
+```bash
+# Config file sets model to llama3.2, but CLI overrides to qwen2.5
+mcprobe run scenario.yaml --config mcprobe.yaml --model qwen2.5:7b
+```
+
+### Pytest Integration
+
+**With explicit config file**:
+```bash
+pytest scenarios/ --mcprobe-config mcprobe.yaml
+```
+
+**With auto-discovery**:
+```bash
+# Uses mcprobe.yaml in current directory if present
+pytest scenarios/
+```
+
+**Override config with pytest options**:
+```bash
+pytest scenarios/ --mcprobe-config mcprobe.yaml --mcprobe-provider openai
+```
+
+### Common Configuration Patterns
+
+#### Development Setup (CLI)
 
 For local development with Ollama:
 
@@ -291,20 +668,43 @@ mcprobe run scenario.yaml \
   --agent-type simple
 ```
 
-### CI/CD Setup
+#### Development Setup (Config File)
 
-For automated testing with remote Ollama:
+Create `mcprobe.yaml`:
+```yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+```
 
+Then run:
 ```bash
-export OLLAMA_BASE_URL=http://ollama-service:11434
-mcprobe run scenarios/ --provider ollama --model llama3.2 --agent-type simple
+mcprobe run scenario.yaml
+```
+
+#### CI/CD Setup
+
+For automated testing with config file:
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ${CI_LLM_PROVIDER:-ollama}
+  model: ${CI_LLM_MODEL:-llama3.2}
+  base_url: ${CI_LLM_BASE_URL:-http://ollama-service:11434}
+  api_key: ${CI_LLM_API_KEY}
+
+results:
+  save: true
+  dir: ${CI_RESULTS_DIR:-test-results}
 ```
 
 For CI/CD with OpenAI:
 
 ```bash
 export OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-mcprobe run scenarios/ --provider openai --model gpt-4 --agent-type simple
+mcprobe run scenarios/ --config mcprobe.yaml
 ```
 
 ### Self-Hosted LLM Endpoints
@@ -340,6 +740,24 @@ config = MCProbeConfig(
 
 For testing Gemini ADK agents with MCP tools:
 
+**Using configuration file (recommended):**
+```yaml
+# mcprobe.yaml
+agent:
+  type: adk
+  factory: my_agent_factory.py
+
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+```
+
+```bash
+mcprobe run scenario.yaml
+```
+
+**Using CLI arguments:**
 ```bash
 mcprobe run scenario.yaml \
   --agent-type adk \
@@ -348,7 +766,10 @@ mcprobe run scenario.yaml \
   --base-url http://localhost:11434
 ```
 
-Note: The `--model` and `--base-url` are used for the synthetic user and judge, not the ADK agent.
+**Important Notes:**
+- The `--model` and `--base-url` configure the judge and synthetic user, NOT the ADK agent
+- ADK agents always use Gemini internally
+- You can mix providers: test a Gemini agent with OpenAI judge and Ollama synthetic user
 
 ### Custom Temperature and Tokens
 

@@ -79,6 +79,21 @@ mcprobe run test-scenario.yaml
 mcprobe run test-scenario.yaml --provider openai --model gpt-4
 ```
 
+**Using a Configuration File:**
+
+Create `mcprobe.yaml`:
+```yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+```
+
+Then run:
+```bash
+mcprobe run test-scenario.yaml
+```
+
 ### View Results
 
 ```
@@ -106,6 +121,10 @@ mcprobe run scenario.yaml -v        # Run with verbose output
 mcprobe run scenario.yaml --provider ollama --model llama3.2
 mcprobe run scenario.yaml --provider openai --model gpt-4
 
+# Use configuration file
+mcprobe run scenario.yaml --config mcprobe.yaml
+mcprobe run scenario.yaml -c mcprobe.yaml
+
 # Generate scenarios from MCP server
 mcprobe generate-scenarios --server "npx @example/weather-mcp" -o ./scenarios
 
@@ -130,6 +149,12 @@ MCProbe includes a pytest plugin for seamless test integration:
 ```bash
 # Run scenarios as pytest tests
 pytest scenarios/ -v
+
+# Use config file
+pytest scenarios/ --mcprobe-config mcprobe.yaml
+
+# Override config with CLI options
+pytest scenarios/ --mcprobe-provider openai --mcprobe-model gpt-4
 
 # Save results for analysis
 pytest scenarios/ --mcprobe-save-results

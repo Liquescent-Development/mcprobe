@@ -252,7 +252,46 @@ For advanced setups with custom LLM providers, see the [Integration Guide](../in
 
 ## Configuration
 
-MCProbe can be configured via command-line options or environment variables.
+MCProbe can be configured via configuration files, command-line options, or environment variables.
+
+### Configuration Files
+
+Create a `mcprobe.yaml` file for centralized configuration:
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+  temperature: 0.0
+
+orchestrator:
+  max_turns: 10
+  turn_timeout_seconds: 30.0
+
+results:
+  save: true
+  dir: test-results
+```
+
+MCProbe automatically discovers config files in the current directory:
+
+```bash
+# Uses mcprobe.yaml if present
+mcprobe run scenario.yaml
+```
+
+Or specify an explicit config file:
+
+```bash
+mcprobe run scenario.yaml --config mcprobe.yaml
+```
+
+See [Configuration Reference](../configuration/reference.md) for complete documentation including:
+- Environment variable interpolation (`${VAR}` syntax)
+- Component-specific configs (separate settings for judge vs synthetic user)
+- Multiple provider configurations
 
 ### Environment Variables
 
@@ -260,11 +299,19 @@ MCProbe can be configured via command-line options or environment variables.
 # Ollama base URL (default: http://localhost:11434)
 export OLLAMA_BASE_URL="http://localhost:11434"
 
-# Default model (default: llama3.2)
-export MCPROBE_DEFAULT_MODEL="llama3.1:8b"
+# OpenAI API key (required for OpenAI provider)
+export OPENAI_API_KEY="sk-your-key-here"
+```
 
-# Results storage directory (default: test-results)
-export MCPROBE_RESULTS_DIR="./my-test-results"
+Environment variables can be used in config files:
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: openai
+  model: gpt-4
+  api_key: ${OPENAI_API_KEY}
+  base_url: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
 ```
 
 ### Command-Line Options
@@ -273,10 +320,12 @@ Override defaults when running tests:
 
 ```bash
 mcprobe run scenario.yaml \
-  --model llama3.1:8b \
-  --base-url http://remote-ollama:11434 \
+  --provider openai \
+  --model gpt-4 \
   --verbose
 ```
+
+CLI options override config file settings.
 
 ## Troubleshooting
 

@@ -126,6 +126,25 @@ mcprobe run greeting.yaml
 mcprobe run greeting.yaml --provider openai --model gpt-4
 ```
 
+**Using a Configuration File** (recommended for multiple runs):
+
+Create `mcprobe.yaml`:
+```yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+
+results:
+  save: true
+  dir: test-results
+```
+
+Then run:
+```bash
+mcprobe run greeting.yaml
+```
+
 You'll see output like:
 
 ```
@@ -265,7 +284,16 @@ ollama pull llama3.2
 export OPENAI_API_KEY="sk-your-key-here"
 ```
 
-Or provide it in your configuration (see [Configuration Reference](../configuration/reference.md)).
+Or provide it in a configuration file:
+```yaml
+# mcprobe.yaml
+llm:
+  provider: openai
+  model: gpt-4
+  api_key: ${OPENAI_API_KEY}
+```
+
+See [Configuration Reference](../configuration/reference.md) for more details.
 
 ### Test Fails Unexpectedly
 
@@ -279,7 +307,33 @@ Or provide it in your configuration (see [Configuration Reference](../configurat
 
 Congratulations! You've run your first MCProbe test. Here's what to learn next:
 
-### 1. Create a More Complex Scenario
+### 1. Set Up a Configuration File
+
+For repeated testing, create a configuration file:
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+  temperature: 0.0
+
+orchestrator:
+  max_turns: 10
+  turn_timeout_seconds: 30.0
+
+results:
+  save: true
+  dir: test-results
+```
+
+See [Configuration Reference](../configuration/reference.md) for all options including:
+- Component-specific configs (separate settings for judge vs synthetic user)
+- Environment variable interpolation
+- Multiple provider configurations
+
+### 2. Create a More Complex Scenario
 
 Try the [First Scenario Tutorial](first-scenario.md) to learn:
 - How to define realistic user personas
@@ -287,7 +341,7 @@ Try the [First Scenario Tutorial](first-scenario.md) to learn:
 - Testing tool usage with MCP servers
 - Writing effective evaluation criteria
 
-### 2. Test a Real MCP Agent
+### 3. Test a Real MCP Agent
 
 Learn how to test agents that use MCP tools:
 - Connect to MCP servers
@@ -295,7 +349,7 @@ Learn how to test agents that use MCP tools:
 - Validate tool call parameters
 - Test multi-tool scenarios
 
-### 3. Generate Test Reports
+### 4. Generate Test Reports
 
 Create shareable HTML reports:
 
@@ -307,7 +361,7 @@ mcprobe run greeting.yaml
 mcprobe report --format html --output report.html
 ```
 
-### 4. Track Trends Over Time
+### 5. Track Trends Over Time
 
 Run the same scenario multiple times and analyze trends:
 
@@ -319,7 +373,7 @@ for i in {1..10}; do mcprobe run greeting.yaml; done
 mcprobe trends --scenario "Simple Greeting Test"
 ```
 
-### 5. Detect Flaky Tests
+### 6. Detect Flaky Tests
 
 Identify scenarios with inconsistent results:
 
