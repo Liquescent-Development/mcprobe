@@ -28,6 +28,49 @@ Run a specific scenario file:
 pytest scenarios/weather_basic.yaml
 ```
 
+### Using Configuration Files
+
+MCProbe automatically discovers `mcprobe.yaml` or `.mcprobe.yaml` files in the current directory:
+
+```bash
+# Auto-discovers config file
+pytest scenarios/
+```
+
+Or specify an explicit config file:
+
+```bash
+pytest scenarios/ --mcprobe-config mcprobe.yaml
+```
+
+Example `mcprobe.yaml`:
+
+```yaml
+agent:
+  type: adk  # or "simple"
+  factory: my_agent_factory.py  # required for ADK agents
+
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+
+results:
+  save: true
+  dir: test-results
+```
+
+**Note:** The `agent:` section is optional - it defaults to `type: simple` if not specified.
+
+### Overriding Configuration
+
+CLI arguments override configuration file settings:
+
+```bash
+# Config file has provider: ollama, but override to openai
+pytest scenarios/ --mcprobe-config mcprobe.yaml --mcprobe-provider openai
+```
+
 ### Verbose Output
 
 Use pytest's `-v` flag for detailed test output:
@@ -46,25 +89,45 @@ pytest scenarios/ -vv
 
 MCProbe adds several pytest command-line options for configuring test execution:
 
+### `--mcprobe-config`
+
+Specify the path to an mcprobe.yaml configuration file. If not provided, MCProbe will auto-discover configuration files in the current directory.
+
+```bash
+pytest scenarios/ --mcprobe-config mcprobe.yaml
+```
+
+**Default:** Auto-discovery (checks for `mcprobe.yaml`, `.mcprobe.yaml`, etc.)
+
+### `--mcprobe-provider`
+
+Specify the LLM provider to use. Common values are `ollama`, `openai`. This overrides the configuration file setting.
+
+```bash
+pytest scenarios/ --mcprobe-provider openai
+```
+
+**Default:** From config file, or `ollama` if no config
+
 ### `--mcprobe-model`
 
-Specify the LLM model to use for the synthetic user and judge components.
+Specify the LLM model to use for the synthetic user and judge components. This overrides the configuration file setting.
 
 ```bash
 pytest scenarios/ --mcprobe-model llama3.2
 ```
 
-**Default:** `llama3.2`
+**Default:** From config file, or `llama3.2` if no config
 
 ### `--mcprobe-base-url`
 
-Set the base URL for the Ollama API server.
+Set the base URL for the LLM API server. This overrides the configuration file setting.
 
 ```bash
 pytest scenarios/ --mcprobe-base-url http://localhost:11434
 ```
 
-**Default:** `http://localhost:11434`
+**Default:** From config file, or provider-specific default
 
 ### `--mcprobe-agent-type`
 
@@ -76,7 +139,30 @@ Choose the type of agent to test. Options are:
 pytest scenarios/ --mcprobe-agent-type simple
 ```
 
+**Can also be set in config file:**
+```yaml
+agent:
+  type: adk
+```
+
 **Default:** `simple`
+
+### `--mcprobe-agent-factory`
+
+Path to Python module with `create_agent()` function. Required when using `--mcprobe-agent-type adk`.
+
+```bash
+pytest scenarios/ --mcprobe-agent-type adk --mcprobe-agent-factory my_agent.py
+```
+
+**Can also be set in config file:**
+```yaml
+agent:
+  type: adk
+  factory: my_agent_factory.py
+```
+
+**Default:** None
 
 ### `--mcprobe-save-results`
 
@@ -86,7 +172,7 @@ Save test results for trend analysis and reporting. This is enabled by default.
 pytest scenarios/ --mcprobe-save-results
 ```
 
-**Default:** `True`
+**Default:** From config file, or `True` if no config
 
 To disable result saving:
 
@@ -102,7 +188,7 @@ Specify the directory where test results should be saved.
 pytest scenarios/ --mcprobe-results-dir ./my-results
 ```
 
-**Default:** `test-results`
+**Default:** From config file, or `test-results` if no config
 
 ## Tag Filtering with Markers
 
@@ -349,13 +435,41 @@ pytest scenarios/ -n auto
 
 ### CI/CD Workflow
 
-Comprehensive testing in CI:
+Comprehensive testing in CI with config file (recommended):
+
+```yaml
+# mcprobe.yaml
+agent:
+  type: ${AGENT_TYPE:-simple}
+  factory: ${AGENT_FACTORY}  # optional, for ADK agents
+
+llm:
+  provider: ${CI_LLM_PROVIDER:-ollama}
+  model: ${CI_LLM_MODEL:-llama3.2}
+  base_url: ${CI_LLM_BASE_URL:-http://localhost:11434}
+
+results:
+  save: true
+  dir: test-results
+```
 
 ```bash
 # Run all scenarios with full reporting
 pytest scenarios/ \
   -v \
   --junit-xml=results.xml \
+  --mcprobe-config mcprobe.yaml
+```
+
+Or without config file (more verbose):
+
+```bash
+# Run all scenarios with full reporting
+pytest scenarios/ \
+  -v \
+  --junit-xml=results.xml \
+  --mcprobe-agent-type simple \
+  --mcprobe-provider ollama \
   --mcprobe-model llama3.2 \
   --mcprobe-base-url http://localhost:11434 \
   --mcprobe-save-results \

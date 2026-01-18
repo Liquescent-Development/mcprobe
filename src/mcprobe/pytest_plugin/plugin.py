@@ -21,9 +21,9 @@ from _pytest._code.code import TerminalRepr
 from mcprobe import __version__
 from mcprobe.agents.base import AgentUnderTest
 from mcprobe.agents.simple import SimpleLLMAgent
+from mcprobe.config import CLIOverrides, ConfigLoader, FileConfig
 from mcprobe.exceptions import MCProbeError
 from mcprobe.judge.judge import ConversationJudge
-from mcprobe.models.config import LLMConfig
 from mcprobe.models.scenario import TestScenario
 from mcprobe.orchestrator.orchestrator import ConversationOrchestrator
 from mcprobe.parser.scenario import ScenarioParser
@@ -40,10 +40,10 @@ if TYPE_CHECKING:
 class ScenarioRunConfig:
     """Configuration for running a single scenario."""
 
-    model: str
-    base_url: str
-    agent_type: str
-    agent_factory_path: str | None
+    file_config: FileConfig | None
+    cli_overrides: CLIOverrides
+    cli_agent_type: str | None
+    cli_agent_factory: str | None
     save_results: bool
     results_dir: Path
 
@@ -97,13 +97,32 @@ class MCProbeItem(pytest.Item):
         """Execute the test scenario."""
         # Get configuration from pytest options
         pytest_config = self.config
+
+        # Load config file if specified or discover it
+        config_path = pytest_config.getoption("--mcprobe-config")
+        file_config = ConfigLoader.load_config(Path(config_path) if config_path else None)
+
+        # Build CLI overrides from pytest options
+        cli_overrides = CLIOverrides(
+            provider=pytest_config.getoption("--mcprobe-provider"),
+            model=pytest_config.getoption("--mcprobe-model"),
+            base_url=pytest_config.getoption("--mcprobe-base-url"),
+        )
+
+        # Resolve results config
+        results_config = ConfigLoader.resolve_results_config(
+            file_config,
+            cli_save=pytest_config.getoption("--mcprobe-save-results"),
+            cli_dir=pytest_config.getoption("--mcprobe-results-dir"),
+        )
+
         run_config = ScenarioRunConfig(
-            model=pytest_config.getoption("--mcprobe-model") or "llama3.2",
-            base_url=pytest_config.getoption("--mcprobe-base-url") or "http://localhost:11434",
-            agent_type=pytest_config.getoption("--mcprobe-agent-type") or "simple",
-            agent_factory_path=pytest_config.getoption("--mcprobe-agent-factory"),
-            save_results=pytest_config.getoption("--mcprobe-save-results"),
-            results_dir=Path(pytest_config.getoption("--mcprobe-results-dir") or "test-results"),
+            file_config=file_config,
+            cli_overrides=cli_overrides,
+            cli_agent_type=pytest_config.getoption("--mcprobe-agent-type"),
+            cli_agent_factory=pytest_config.getoption("--mcprobe-agent-factory"),
+            save_results=results_config.save,
+            results_dir=Path(results_config.dir),
         )
 
         # Run the scenario
@@ -115,26 +134,42 @@ class MCProbeItem(pytest.Item):
         Args:
             config: Configuration for running the scenario.
         """
-        # Create LLM config
-        llm_config = LLMConfig(provider="ollama", model=config.model, base_url=config.base_url)
-        provider = create_provider(llm_config)
+        # Resolve agent configuration
+        agent_config = ConfigLoader.resolve_agent_config(
+            config.file_config,
+            cli_agent_type=config.cli_agent_type,
+            cli_agent_factory=config.cli_agent_factory,
+        )
+
+        # Resolve LLM configs for each component
+        judge_config = ConfigLoader.resolve_llm_config(
+            config.file_config, "judge", config.cli_overrides
+        )
+        synthetic_user_config = ConfigLoader.resolve_llm_config(
+            config.file_config, "synthetic_user", config.cli_overrides
+        )
+
+        # Create providers for each component
+        judge_provider = create_provider(judge_config)
+        synthetic_user_provider = create_provider(synthetic_user_config)
 
         # Create agent
         agent: AgentUnderTest
-        if config.agent_type == "adk":
-            if config.agent_factory_path is None:
-                msg = "ADK agent type requires --mcprobe-agent-factory"
+        if agent_config.type == "adk":
+            if agent_config.factory is None:
+                msg = "ADK agent requires factory path in config or --mcprobe-agent-factory"
                 raise MCProbeError(msg)
-            agent = self._create_adk_agent(config.agent_factory_path)
+            agent = self._create_adk_agent(agent_config.factory)
         else:
-            agent = SimpleLLMAgent(provider)
+            # Simple agent uses synthetic_user config (shared LLM)
+            agent = SimpleLLMAgent(synthetic_user_provider)
 
         # Reset agent for new scenario
         await agent.reset()
 
         # Create components
-        synthetic_user = SyntheticUserLLM(provider, self.scenario.synthetic_user)
-        judge = ConversationJudge(provider)
+        synthetic_user = SyntheticUserLLM(synthetic_user_provider, self.scenario.synthetic_user)
+        judge = ConversationJudge(judge_provider)
         orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
 
         # Run the scenario
@@ -142,7 +177,8 @@ class MCProbeItem(pytest.Item):
 
         # Save results if enabled
         if config.save_results:
-            await self._save_results(config.results_dir, config.model, config.agent_type)
+            model_name = config.cli_overrides.model or judge_config.model
+            await self._save_results(config.results_dir, model_name, agent_config.type)
 
         # Assert the test passed
         if not self.judgment_result.passed:
@@ -336,35 +372,47 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     """
     group = parser.getgroup("mcprobe")
     group.addoption(
+        "--mcprobe-config",
+        action="store",
+        default=None,
+        help="Path to mcprobe.yaml configuration file",
+    )
+    group.addoption(
+        "--mcprobe-provider",
+        action="store",
+        default=None,
+        help="LLM provider: ollama, openai (default: from config or ollama)",
+    )
+    group.addoption(
         "--mcprobe-model",
         action="store",
-        default="llama3.2",
-        help="LLM model name for synthetic user and judge (default: llama3.2)",
+        default=None,
+        help="LLM model name for synthetic user and judge (default: from config or llama3.2)",
     )
     group.addoption(
         "--mcprobe-base-url",
         action="store",
-        default="http://localhost:11434",
-        help="Ollama base URL (default: http://localhost:11434)",
+        default=None,
+        help="LLM provider base URL (default: from config or http://localhost:11434)",
     )
     group.addoption(
         "--mcprobe-agent-type",
         action="store",
-        default="simple",
+        default=None,
         choices=["simple", "adk"],
-        help="Agent type: simple or adk (default: simple)",
+        help="Agent type: simple or adk (default: from config or simple)",
     )
     group.addoption(
         "--mcprobe-agent-factory",
         action="store",
         default=None,
-        help="Path to Python module with create_agent() function (required for adk type)",
+        help="Path to agent factory module (default: from config)",
     )
     group.addoption(
         "--mcprobe-save-results",
         action="store_true",
-        default=True,
-        help="Save test results for trend analysis (default: True)",
+        default=None,
+        help="Save test results for trend analysis (default: from config or True)",
     )
     group.addoption(
         "--mcprobe-no-save-results",
@@ -375,8 +423,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     group.addoption(
         "--mcprobe-results-dir",
         action="store",
-        default="test-results",
-        help="Directory to store test results (default: test-results)",
+        default=None,
+        help="Directory to store test results (default: from config or test-results)",
     )
 
 
