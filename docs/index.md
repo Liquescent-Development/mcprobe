@@ -61,11 +61,13 @@ evaluation:
 Run the scenario:
 
 ```bash
-# Start Ollama and pull a model
+# Option 1: With Ollama (local)
 ollama pull llama3.2
-
-# Run the test
 mcprobe run greeting.yaml
+
+# Option 2: With OpenAI (cloud)
+export OPENAI_API_KEY="sk-your-key"
+mcprobe run greeting.yaml --provider openai --model gpt-4
 ```
 
 Output:
