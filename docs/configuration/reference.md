@@ -28,8 +28,8 @@ Configuration for an LLM provider used by the agent, synthetic user, or judge.
 | `model` | `str` | Yes | - | Model identifier (e.g., "llama3.2", "gpt-4") |
 | `temperature` | `float` | No | `0.0` | Sampling temperature (0.0-2.0) |
 | `max_tokens` | `int` | No | `4096` | Maximum tokens in response |
-| `api_key` | `SecretStr \| None` | No | `None` | API key for authentication |
-| `base_url` | `str \| None` | No | `None` | Base URL for API endpoint |
+| `api_key` | `SecretStr \| None` | No | `None` | API key for authentication (required for OpenAI) |
+| `base_url` | `str \| None` | No | `None` | Base URL for API endpoint (optional, provider-specific) |
 
 ### Validation Rules
 
@@ -39,7 +39,46 @@ Configuration for an LLM provider used by the agent, synthetic user, or judge.
 - `max_tokens`: Must be at least 1
 - `api_key`: Stored as SecretStr for security (won't be logged or printed)
 
-### Example
+### Supported Providers
+
+#### Ollama
+
+Local LLM provider using Ollama for model inference.
+
+**Configuration:**
+- `provider`: `"ollama"`
+- `model`: Any Ollama model (e.g., `"llama3.2"`, `"llama3.1:8b"`, `"qwen2.5:7b"`)
+- `base_url`: Ollama API endpoint (default: `http://localhost:11434`)
+- `api_key`: Not required
+
+**Environment Variables:**
+- `OLLAMA_BASE_URL`: Override default base URL
+
+#### OpenAI
+
+OpenAI-compatible provider supporting multiple backends:
+- OpenAI API
+- Azure OpenAI
+- vLLM
+- LiteLLM
+- Ollama (OpenAI compatibility mode)
+- Any other OpenAI-compatible service
+
+**Configuration:**
+- `provider`: `"openai"`
+- `model`: Model identifier (e.g., `"gpt-4"`, `"gpt-3.5-turbo"`)
+- `api_key`: OpenAI API key (required unless using `OPENAI_API_KEY` env var)
+- `base_url`: Optional custom endpoint URL (e.g., for Azure OpenAI or self-hosted)
+
+**Environment Variables:**
+- `OPENAI_API_KEY`: API key (used if not provided in config)
+
+**Features:**
+- Tool/function calling support
+- Structured JSON output via `response_format`
+- Compatible with any OpenAI API-compatible endpoint
+
+### Examples
 
 ```python
 from mcprobe.models.config import LLMConfig
@@ -60,6 +99,38 @@ openai_config = LLMConfig(
     temperature=0.7,
     max_tokens=2048,
     api_key="sk-..."
+)
+
+# OpenAI with environment variable for API key
+openai_env_config = LLMConfig(
+    provider="openai",
+    model="gpt-3.5-turbo",
+    temperature=0.5
+    # API key from OPENAI_API_KEY environment variable
+)
+
+# Azure OpenAI configuration
+azure_config = LLMConfig(
+    provider="openai",
+    model="gpt-4",
+    api_key="your-azure-key",
+    base_url="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+)
+
+# vLLM self-hosted endpoint
+vllm_config = LLMConfig(
+    provider="openai",
+    model="meta-llama/Llama-3.1-8B-Instruct",
+    api_key="dummy-key",  # vLLM doesn't require real API key
+    base_url="http://localhost:8000/v1"
+)
+
+# Ollama with OpenAI compatibility mode
+ollama_openai_config = LLMConfig(
+    provider="openai",
+    model="llama3.2",
+    api_key="dummy-key",  # Ollama doesn't require API key
+    base_url="http://localhost:11434/v1"
 )
 ```
 
@@ -150,18 +221,26 @@ MCProbe supports configuration via environment variables. These are provider-spe
 
 ### OpenAI
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key | - |
-| `OPENAI_BASE_URL` | OpenAI API base URL | `https://api.openai.com/v1` |
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `OPENAI_API_KEY` | OpenAI API key | - | Yes (unless provided in config) |
+
+**Note**: The OpenAI provider does not use `OPENAI_BASE_URL` environment variable. Use the `base_url` field in `LLMConfig` for custom endpoints.
 
 ### Usage
 
 ```bash
+# Ollama
 export OLLAMA_BASE_URL=http://localhost:11434
-export OPENAI_API_KEY=sk-your-key-here
+mcprobe run scenario.yaml --provider ollama --model llama3.2
 
-mcprobe run scenario.yaml
+# OpenAI
+export OPENAI_API_KEY=sk-your-key-here
+mcprobe run scenario.yaml --provider openai --model gpt-4
+
+# Azure OpenAI (requires base_url in config, not via env var)
+export OPENAI_API_KEY=your-azure-key
+# Use config file or programmatic configuration for base_url
 ```
 
 ## Configuration Precedence
@@ -196,8 +275,19 @@ For local development with Ollama:
 
 ```bash
 mcprobe run scenario.yaml \
+  --provider ollama \
   --model llama3.2 \
   --base-url http://localhost:11434 \
+  --agent-type simple
+```
+
+For development with OpenAI:
+
+```bash
+export OPENAI_API_KEY=sk-your-key
+mcprobe run scenario.yaml \
+  --provider openai \
+  --model gpt-3.5-turbo \
   --agent-type simple
 ```
 
@@ -207,7 +297,43 @@ For automated testing with remote Ollama:
 
 ```bash
 export OLLAMA_BASE_URL=http://ollama-service:11434
-mcprobe run scenarios/ --model llama3.2 --agent-type simple
+mcprobe run scenarios/ --provider ollama --model llama3.2 --agent-type simple
+```
+
+For CI/CD with OpenAI:
+
+```bash
+export OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+mcprobe run scenarios/ --provider openai --model gpt-4 --agent-type simple
+```
+
+### Self-Hosted LLM Endpoints
+
+For vLLM or other OpenAI-compatible endpoints:
+
+```python
+from mcprobe.models.config import LLMConfig, MCProbeConfig
+
+config = MCProbeConfig(
+    agent=LLMConfig(
+        provider="openai",
+        model="meta-llama/Llama-3.1-8B-Instruct",
+        api_key="dummy",
+        base_url="http://vllm-server:8000/v1"
+    ),
+    synthetic_user=LLMConfig(
+        provider="openai",
+        model="meta-llama/Llama-3.1-8B-Instruct",
+        api_key="dummy",
+        base_url="http://vllm-server:8000/v1"
+    ),
+    judge=LLMConfig(
+        provider="openai",
+        model="meta-llama/Llama-3.1-8B-Instruct",
+        api_key="dummy",
+        base_url="http://vllm-server:8000/v1"
+    )
+)
 ```
 
 ### ADK Agent Setup

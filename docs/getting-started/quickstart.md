@@ -16,9 +16,11 @@ Verify the installation:
 mcprobe --help
 ```
 
-## Step 2: Set Up Ollama
+## Step 2: Set Up an LLM Provider
 
-MCProbe uses Ollama for local LLM inference. Install and start it:
+MCProbe needs an LLM provider for the synthetic user and judge. Choose one:
+
+### Option A: Ollama (Local, Free)
 
 **Install Ollama**:
 ```bash
@@ -44,6 +46,17 @@ ollama pull llama3.2
 ```
 
 This downloads the Llama 3.2 model (about 2GB). It's used for the synthetic user and judge.
+
+### Option B: OpenAI (Cloud, Requires API Key)
+
+**Set your API key**:
+```bash
+export OPENAI_API_KEY="sk-your-key-here"
+```
+
+That's it! No additional setup needed. You'll use `--provider openai --model gpt-4` when running tests.
+
+**Note**: The examples below use Ollama by default. To use OpenAI instead, add `--provider openai --model gpt-4` to the commands.
 
 ## Step 3: Create Your First Scenario
 
@@ -103,8 +116,14 @@ tags:
 
 Execute the test:
 
+**With Ollama** (default):
 ```bash
 mcprobe run greeting.yaml
+```
+
+**With OpenAI**:
+```bash
+mcprobe run greeting.yaml --provider openai --model gpt-4
 ```
 
 You'll see output like:
@@ -222,14 +241,31 @@ This checks:
 ollama serve
 ```
 
+Or switch to OpenAI:
+```bash
+export OPENAI_API_KEY="sk-your-key"
+mcprobe run greeting.yaml --provider openai --model gpt-4
+```
+
 ### "Model not found" Error
 
-**Problem**: The llama3.2 model hasn't been downloaded.
+**Problem**: The llama3.2 model hasn't been downloaded (Ollama).
 
 **Solution**: Pull the model:
 ```bash
 ollama pull llama3.2
 ```
+
+### "OpenAI API key not found" Error
+
+**Problem**: Using OpenAI provider without setting the API key.
+
+**Solution**: Set the environment variable:
+```bash
+export OPENAI_API_KEY="sk-your-key-here"
+```
+
+Or provide it in your configuration (see [Configuration Reference](../configuration/reference.md)).
 
 ### Test Fails Unexpectedly
 

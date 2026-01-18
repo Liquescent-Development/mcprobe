@@ -28,8 +28,9 @@ pip install mcprobe[adk]
 
 ### Prerequisites
 
-MCProbe requires an LLM for the synthetic user and judge. By default, it uses Ollama:
+MCProbe requires an LLM provider for the synthetic user and judge. Choose one:
 
+**Option 1: Ollama (Local, Free)**
 ```bash
 # Install Ollama (macOS/Linux)
 curl -fsSL https://ollama.com/install.sh | sh
@@ -38,6 +39,14 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama serve
 ollama pull llama3.2
 ```
+
+**Option 2: OpenAI (Cloud)**
+```bash
+# Set your API key
+export OPENAI_API_KEY="sk-your-key-here"
+```
+
+The OpenAI provider also works with Azure OpenAI, vLLM, LiteLLM, and other OpenAI-compatible services.
 
 ### Create a Scenario
 
@@ -60,8 +69,14 @@ evaluation:
 
 ### Run the Test
 
+**With Ollama:**
 ```bash
 mcprobe run test-scenario.yaml
+```
+
+**With OpenAI:**
+```bash
+mcprobe run test-scenario.yaml --provider openai --model gpt-4
 ```
 
 ### View Results
@@ -87,6 +102,10 @@ Reasoning: The agent successfully provided weather information...
 mcprobe run scenarios/              # Run all scenarios in directory
 mcprobe run scenario.yaml -v        # Run with verbose output
 
+# Use different providers
+mcprobe run scenario.yaml --provider ollama --model llama3.2
+mcprobe run scenario.yaml --provider openai --model gpt-4
+
 # Generate scenarios from MCP server
 mcprobe generate-scenarios --server "npx @example/weather-mcp" -o ./scenarios
 
@@ -99,6 +118,9 @@ mcprobe flaky --fail-on-flaky
 
 # Validate scenarios
 mcprobe validate scenarios/
+
+# List available providers
+mcprobe providers
 ```
 
 ## pytest Integration

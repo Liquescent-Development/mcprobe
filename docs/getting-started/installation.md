@@ -14,7 +14,11 @@ python --version
 
 If you need to install or upgrade Python, visit [python.org](https://www.python.org/downloads/).
 
-### Ollama (Recommended for Local Testing)
+### LLM Provider
+
+MCProbe requires an LLM provider for the synthetic user and judge. Choose one:
+
+#### Option 1: Ollama (Recommended for Local Testing)
 
 For running tests locally with open-source models, install Ollama:
 
@@ -35,6 +39,27 @@ Start the Ollama service:
 ```bash
 ollama serve
 ```
+
+#### Option 2: OpenAI
+
+For cloud-based LLM inference:
+
+```bash
+# Set your API key
+export OPENAI_API_KEY="sk-your-key-here"
+
+# No additional installation needed
+```
+
+The OpenAI provider works with:
+- OpenAI API (gpt-4, gpt-3.5-turbo, etc.)
+- Azure OpenAI (requires custom base_url)
+- vLLM (self-hosted inference)
+- LiteLLM (multi-provider gateway)
+- Ollama (via OpenAI-compatible API mode)
+- Any other OpenAI-compatible endpoint
+
+See [Configuration Reference](../configuration/reference.md) for detailed provider setup.
 
 ## Installing MCProbe
 
@@ -181,7 +206,27 @@ mcprobe run scenario.yaml --model llama3.1:8b
 
 ## Using Cloud LLM Providers
 
-While Ollama is the default, you can use cloud providers for the agent under test.
+While Ollama is the default for local testing, MCProbe supports cloud LLM providers for the synthetic user, judge, and agent.
+
+### OpenAI
+
+MCProbe includes built-in support for OpenAI and OpenAI-compatible endpoints:
+
+```bash
+# Set your API key
+export OPENAI_API_KEY="sk-your-key-here"
+
+# Run tests with OpenAI
+mcprobe run scenario.yaml --provider openai --model gpt-4
+```
+
+The OpenAI provider also works with:
+- **Azure OpenAI**: Use custom `base_url` in configuration
+- **vLLM**: Self-hosted inference server with OpenAI API compatibility
+- **LiteLLM**: Unified interface to multiple LLM providers
+- **Ollama (OpenAI mode)**: Use Ollama via OpenAI-compatible API
+
+See the [Configuration Reference](../configuration/reference.md) for examples of each setup.
 
 ### Gemini ADK Agents
 
