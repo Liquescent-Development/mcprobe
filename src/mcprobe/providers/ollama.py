@@ -143,6 +143,19 @@ class OllamaProvider(LLMProvider):
                 tools=ollama_tools,
                 options=options if options else None,
             )
+        except ollama.ResponseError as e:
+            # Parse common Ollama errors for better user feedback
+            error_str = str(e)
+            if "not found" in error_str.lower():
+                msg = (
+                    f"Ollama model '{self._config.model}' not found. "
+                    f"Check that the model exists on the server "
+                    f"(run 'ollama list' or check /api/tags endpoint). "
+                    f"Original error: {e}"
+                )
+            else:
+                msg = f"Ollama API error: {e}"
+            raise LLMProviderError(msg) from e
         except Exception as e:
             msg = f"Ollama API error: {e}"
             raise LLMProviderError(msg) from e
@@ -214,6 +227,19 @@ class OllamaProvider(LLMProvider):
                 format=response_schema.model_json_schema(),
                 options=options if options else None,
             )
+        except ollama.ResponseError as e:
+            # Parse common Ollama errors for better user feedback
+            error_str = str(e)
+            if "not found" in error_str.lower():
+                msg = (
+                    f"Ollama model '{self._config.model}' not found. "
+                    f"Check that the model exists on the server "
+                    f"(run 'ollama list' or check /api/tags endpoint). "
+                    f"Original error: {e}"
+                )
+            else:
+                msg = f"Ollama API error: {e}"
+            raise LLMProviderError(msg) from e
         except Exception as e:
             msg = f"Ollama API error: {e}"
             raise LLMProviderError(msg) from e
