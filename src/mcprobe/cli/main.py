@@ -6,7 +6,9 @@ Provides the command-line interface for running MCP server tests.
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -33,6 +35,60 @@ from mcprobe.providers.factory import ProviderRegistry, create_provider
 from mcprobe.synthetic_user.user import SyntheticUserLLM
 
 DEFAULT_RESULTS_DIR = "test-results"
+
+# Pattern for relative time strings like "1h", "30m", "1d"
+RELATIVE_TIME_PATTERN = re.compile(r"^(\d+)([hmd])$", re.IGNORECASE)
+
+
+def _parse_since(since_str: str) -> datetime:
+    """Parse a since string into a datetime.
+
+    Args:
+        since_str: Time specification - ISO format, date, or relative (1h, 30m, 1d).
+
+    Returns:
+        Parsed datetime in UTC.
+
+    Raises:
+        typer.BadParameter: If the format is invalid.
+    """
+    # Try relative format first (1h, 30m, 1d)
+    match = RELATIVE_TIME_PATTERN.match(since_str.strip())
+    if match:
+        amount = int(match.group(1))
+        unit = match.group(2).lower()
+        now = datetime.now(UTC)
+        if unit == "h":
+            return now - timedelta(hours=amount)
+        elif unit == "m":
+            return now - timedelta(minutes=amount)
+        elif unit == "d":
+            return now - timedelta(days=amount)
+
+    # Try ISO format with time
+    try:
+        # Try full ISO format
+        dt = datetime.fromisoformat(since_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
+    except ValueError:
+        pass
+
+    # Try date-only format
+    try:
+        dt = datetime.strptime(since_str, "%Y-%m-%d")
+        return dt.replace(tzinfo=UTC)
+    except ValueError:
+        pass
+
+    msg = (
+        f"Invalid time format: '{since_str}'. "
+        "Use ISO format (2026-01-18T13:00:00), date (2026-01-18), "
+        "or relative (1h, 30m, 1d)."
+    )
+    raise typer.BadParameter(msg)
+
 
 app = typer.Typer(
     name="mcprobe",
@@ -641,7 +697,7 @@ async def _generate_scenarios_async(  # noqa: PLR0913 - CLI helper needs multipl
 
 
 @app.command()
-def report(
+def report(  # noqa: PLR0913 - Typer requires CLI args as function parameters
     results_dir: Annotated[
         Path,
         typer.Option(
@@ -682,6 +738,18 @@ def report(
             help="Maximum number of results to include.",
         ),
     ] = 100,
+    since: Annotated[
+        str | None,
+        typer.Option(
+            "--since",
+            "-s",
+            help=(
+                "Include only results after this time. "
+                "Accepts ISO format (2026-01-18T13:00:00), date (2026-01-18), "
+                "or relative (1h, 30m, 1d for hours/minutes/days ago)."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Generate a report from stored test results.
 
@@ -690,6 +758,8 @@ def report(
 
     Example:
         mcprobe report --format html --output report.html
+        mcprobe report --since 1h  # Results from last hour
+        mcprobe report --since 2026-01-18  # Results from specific date
     """
     from mcprobe.persistence import ResultLoader  # noqa: PLC0415
     from mcprobe.reporting import (  # noqa: PLC0415
@@ -703,13 +773,21 @@ def report(
         raise typer.Exit(code=1)
 
     loader = ResultLoader(results_dir)
-    results = loader.load_all(limit=limit)
+
+    # Parse since option if provided
+    since_dt = _parse_since(since) if since else None
+
+    results = loader.load_all(limit=limit, since=since_dt)
 
     if not results:
-        console.print("[yellow]No test results found.[/yellow]")
+        if since_dt:
+            console.print(f"[yellow]No test results found since {since_dt.isoformat()}.[/yellow]")
+        else:
+            console.print("[yellow]No test results found.[/yellow]")
         raise typer.Exit(code=0)
 
-    console.print(f"[blue]Found {len(results)} test result(s)[/blue]")
+    since_msg = f" since {since_dt.isoformat()}" if since_dt else ""
+    console.print(f"[blue]Found {len(results)} test result(s){since_msg}[/blue]")
 
     # Generate report based on format
     if report_format == "html":
