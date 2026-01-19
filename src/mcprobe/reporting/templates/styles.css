@@ -124,6 +124,71 @@ section h2 {
     border-color: var(--color-primary);
 }
 
+/* Test Run Groups */
+.test-run {
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.run-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.run-header.pass {
+    background: rgba(40, 167, 69, 0.1);
+    border-left: 4px solid var(--color-pass);
+}
+
+.run-header.fail {
+    background: rgba(220, 53, 69, 0.1);
+    border-left: 4px solid var(--color-fail);
+}
+
+.run-info {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.run-id {
+    font-weight: 600;
+    font-family: monospace;
+}
+
+.run-timestamp {
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+}
+
+.run-model {
+    background: var(--color-primary);
+    color: white;
+    padding: 0.125rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.run-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.9rem;
+}
+
+.run-passed {
+    color: var(--color-pass);
+}
+
+.run-failed {
+    color: var(--color-fail);
+}
+
 /* Scenarios Table */
 .scenarios-table {
     width: 100%;
@@ -251,6 +316,77 @@ details summary {
     background: #f3e5f5;
 }
 
+/* Markdown content rendering */
+.markdown-content {
+    margin-top: 0.5rem;
+}
+
+.markdown-content p {
+    margin: 0.5rem 0;
+}
+
+.markdown-content p:first-child {
+    margin-top: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+}
+
+.markdown-content li {
+    margin: 0.25rem 0;
+}
+
+.markdown-content code {
+    background: rgba(0, 0, 0, 0.1);
+    padding: 0.125rem 0.25rem;
+    border-radius: 3px;
+    font-size: 0.85em;
+}
+
+.markdown-content pre {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 0.5rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+}
+
+.markdown-content pre code {
+    background: none;
+    padding: 0;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+    margin: 0.75rem 0 0.25rem 0;
+    font-size: 1em;
+    font-weight: 600;
+}
+
+.markdown-content blockquote {
+    border-left: 3px solid var(--color-border);
+    margin: 0.5rem 0;
+    padding-left: 0.75rem;
+    color: var(--color-text-muted);
+}
+
+.markdown-content table {
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+    font-size: 0.9em;
+}
+
+.markdown-content th,
+.markdown-content td {
+    border: 1px solid var(--color-border);
+    padding: 0.25rem 0.5rem;
+}
+
 /* Tool Calls */
 .tool-call {
     padding: 0.5rem;
@@ -279,6 +415,38 @@ details summary {
     display: block;
     color: var(--color-text-muted);
     font-size: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.tool-call .tool-result {
+    display: block;
+    background: #f0fff0;
+    border: 1px solid #90EE90;
+    padding: 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.tool-call .error {
+    display: block;
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--color-fail);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+.tool-call .no-result {
+    display: block;
+    color: var(--color-text-muted);
+    font-style: italic;
+    font-size: 0.8rem;
     margin-top: 0.25rem;
 }
 
