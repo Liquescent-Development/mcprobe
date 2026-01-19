@@ -225,6 +225,7 @@ class HtmlReportGenerator:
     def _build_runs_html(self, runs: dict[str, list[TestRunResult]]) -> str:
         """Build HTML for all test runs grouped by run_id."""
         sections = []
+        is_first = True
 
         for run_id, run_results in runs.items():
             # Get metadata from first result in run
@@ -232,6 +233,7 @@ class HtmlReportGenerator:
             run_passed = sum(1 for r in run_results if r.judgment_result.passed)
             run_failed = len(run_results) - run_passed
             run_status = "pass" if run_failed == 0 else "fail"
+            run_total = len(run_results)
 
             # Build scenario rows for this run
             scenario_rows = []
@@ -241,34 +243,41 @@ class HtmlReportGenerator:
             scenarios_html = "\n".join(scenario_rows)
 
             run_time = first.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            # First run is open by default, others are collapsed
+            open_attr = " open" if is_first else ""
+            is_first = False
+
             section = f"""
-        <div class="test-run" data-run-id="{run_id[:8]}">
-            <div class="run-header {run_status}">
+        <details class="test-run {run_status}" data-run-id="{run_id[:8]}"{open_attr}>
+            <summary class="run-header">
                 <div class="run-info">
                     <span class="run-id">Run {run_id[:8]}</span>
                     <span class="run-timestamp">{run_time}</span>
                     <span class="run-model">{_escape_html(first.model_name)}</span>
                 </div>
                 <div class="run-stats">
+                    <span class="run-total">{run_total} tests</span>
                     <span class="run-passed">{run_passed} passed</span>
                     <span class="run-failed">{run_failed} failed</span>
                 </div>
+            </summary>
+            <div class="run-content">
+                <table class="scenarios-table">
+                    <thead>
+                        <tr>
+                            <th>Scenario</th>
+                            <th>Status</th>
+                            <th>Score</th>
+                            <th>Duration</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {scenarios_html}
+                    </tbody>
+                </table>
             </div>
-            <table class="scenarios-table">
-                <thead>
-                    <tr>
-                        <th>Scenario</th>
-                        <th>Status</th>
-                        <th>Score</th>
-                        <th>Duration</th>
-                        <th>Details</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {scenarios_html}
-                </tbody>
-            </table>
-        </div>
+        </details>
             """
             sections.append(section)
 
