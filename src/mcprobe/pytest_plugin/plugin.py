@@ -226,8 +226,11 @@ class MCProbeItem(pytest.Item):
         git_commit = self._get_git_commit()
         git_branch = self._get_git_branch()
 
+        # Use the session-level run_id so all tests in this run are grouped together
+        run_id = getattr(self.config, "mcprobe_run_id", str(uuid.uuid4()))
+
         result = TestRunResult(
-            run_id=str(uuid.uuid4()),
+            run_id=run_id,
             timestamp=datetime.now(),
             scenario_name=self.scenario.name,
             scenario_file=str(self.path),
@@ -464,6 +467,8 @@ def pytest_configure(config: pytest.Config) -> None:
         "filterwarnings",
         "ignore::pytest.PytestUnknownMarkWarning",
     )
+    # Generate a single run_id for the entire pytest session
+    config.mcprobe_run_id = str(uuid.uuid4())  # type: ignore[attr-defined]
 
 
 def pytest_collection_modifyitems(
