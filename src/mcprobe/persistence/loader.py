@@ -105,7 +105,9 @@ class ResultLoader:
         if scenario_name:
             entries = [e for e in entries if e.scenario_name == scenario_name]
         if since:
-            entries = [e for e in entries if e.timestamp >= since]
+            # Normalize timezone - strip tzinfo from since if entry timestamps are naive
+            since_cmp = since.replace(tzinfo=None) if since.tzinfo else since
+            entries = [e for e in entries if e.timestamp >= since_cmp]
 
         # Sort by timestamp descending
         entries.sort(key=lambda e: e.timestamp, reverse=True)
