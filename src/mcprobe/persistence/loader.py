@@ -35,11 +35,15 @@ class ResultLoader:
             return ResultIndex.model_validate(data)
         return ResultIndex()
 
-    def load(self, run_id: str) -> TestRunResult | None:
-        """Load a specific test run by ID.
+    def load(
+        self, run_id: str, timestamp: datetime | None = None
+    ) -> TestRunResult | None:
+        """Load a specific test run by ID and optional timestamp.
 
         Args:
             run_id: The run ID to load.
+            timestamp: Optional timestamp to match specific file when multiple
+                      tests share the same run_id.
 
         Returns:
             The test run result, or None if not found.
@@ -47,13 +51,25 @@ class ResultLoader:
         if not self._runs_dir.exists():
             return None
 
-        # Search for the run file
-        for run_file in self._runs_dir.glob("*.json"):
-            if run_id[:8] in run_file.name:
+        short_id = run_id[:8]
+
+        # If timestamp provided, construct exact filename
+        if timestamp is not None:
+            timestamp_str = timestamp.strftime("%Y-%m-%dT%H-%M-%S")
+            expected_filename = f"{timestamp_str}_{short_id}.json"
+            run_path = self._runs_dir / expected_filename
+            if run_path.exists():
                 try:
-                    return TestRunResult.model_validate_json(run_file.read_text())
+                    return TestRunResult.model_validate_json(run_path.read_text())
                 except Exception:
-                    continue
+                    pass
+
+        # Fallback: search for any matching file (backwards compatibility)
+        for run_file in self._runs_dir.glob(f"*_{short_id}.json"):
+            try:
+                return TestRunResult.model_validate_json(run_file.read_text())
+            except Exception:
+                continue
 
         return None
 
@@ -80,7 +96,7 @@ class ResultLoader:
 
         # Sort by timestamp descending and get the latest
         entries.sort(key=lambda e: e.timestamp, reverse=True)
-        return self.load(entries[0].run_id)
+        return self.load(entries[0].run_id, entries[0].timestamp)
 
     def load_all(
         self,
@@ -119,7 +135,7 @@ class ResultLoader:
         # Load full results
         results: list[TestRunResult] = []
         for entry in entries:
-            result = self.load(entry.run_id)
+            result = self.load(entry.run_id, entry.timestamp)
             if result:
                 results.append(result)
 
