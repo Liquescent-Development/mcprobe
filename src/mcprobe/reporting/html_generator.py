@@ -5,6 +5,7 @@ Generates beautiful, self-contained HTML reports from test run results.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
 from importlib.resources import files
 from pathlib import Path
@@ -24,6 +25,9 @@ def _get_styles() -> str:
     """Load the CSS styles."""
     styles_file = files("mcprobe.reporting.templates").joinpath("styles.css")
     return styles_file.read_text()
+
+
+MAX_TOOL_RESULT_LENGTH = 500
 
 
 class HtmlReportGenerator:
@@ -82,6 +86,15 @@ class HtmlReportGenerator:
 
         output_path.write_text(html)
 
+    def _group_by_run(
+        self, results: list[TestRunResult]
+    ) -> dict[str, list[TestRunResult]]:
+        """Group results by run_id, preserving order."""
+        groups: dict[str, list[TestRunResult]] = defaultdict(list)
+        for result in results:
+            groups[result.run_id].append(result)
+        return dict(groups)
+
     def _generate_html(  # noqa: PLR0913
         self,
         title: str,
@@ -101,63 +114,12 @@ class HtmlReportGenerator:
         """
         styles = self._load_styles()
 
-        # Build scenarios rows
-        scenario_rows = []
-        for result in results:
-            status_class = "pass" if result.judgment_result.passed else "fail"
-            status_text = "PASS" if result.judgment_result.passed else "FAIL"
+        # Group results by test run
+        runs = self._group_by_run(results)
+        num_runs = len(runs)
 
-            # Escape HTML in text fields
-            name = _escape_html(result.scenario_name)
-            reasoning = _escape_html(result.judgment_result.reasoning)
-
-            # Build tags
-            tags_html = " ".join(
-                f'<span class="tag">{_escape_html(tag)}</span>'
-                for tag in result.scenario_tags
-            )
-
-            # Build conversation transcript
-            conversation_html = self._build_conversation_html(result)
-
-            # Build correctness results
-            correctness_html = self._build_correctness_html(result)
-
-            # Build tool calls
-            tool_calls_html = self._build_tool_calls_html(result)
-
-            row = f"""
-            <tr class="scenario-row" data-passed="{str(result.judgment_result.passed).lower()}">
-                <td>
-                    <strong>{name}</strong>
-                    <div class="tags">{tags_html}</div>
-                </td>
-                <td class="status {status_class}">{status_text}</td>
-                <td>{result.judgment_result.score:.2f}</td>
-                <td>{result.duration_seconds:.1f}s</td>
-                <td>
-                    <details>
-                        <summary>Details</summary>
-                        <div class="details-content">
-                            <h4>Reasoning</h4>
-                            <p>{reasoning}</p>
-
-                            <h4>Correctness Criteria</h4>
-                            {correctness_html}
-
-                            <h4>Conversation</h4>
-                            {conversation_html}
-
-                            <h4>Tool Calls ({len(result.conversation_result.total_tool_calls)})</h4>
-                            {tool_calls_html}
-                        </div>
-                    </details>
-                </td>
-            </tr>
-            """
-            scenario_rows.append(row)
-
-        scenarios_html = "\n".join(scenario_rows)
+        # Build test run sections
+        runs_html = self._build_runs_html(runs)
 
         # Build the full HTML
         html = f"""<!DOCTYPE html>
@@ -166,6 +128,7 @@ class HtmlReportGenerator:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{_escape_html(title)}</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
 {styles}
     </style>
@@ -179,6 +142,10 @@ class HtmlReportGenerator:
     <section class="summary">
         <h2>Summary</h2>
         <div class="summary-cards">
+            <div class="card">
+                <div class="card-value">{num_runs}</div>
+                <div class="card-label">Test Runs</div>
+            </div>
             <div class="card">
                 <div class="card-value">{total}</div>
                 <div class="card-label">Total Tests</div>
@@ -207,26 +174,13 @@ class HtmlReportGenerator:
     </section>
 
     <section class="scenarios">
-        <h2>Scenarios</h2>
+        <h2>Test Results</h2>
         <div class="filters">
             <button class="filter-btn active" data-filter="all">All ({total})</button>
             <button class="filter-btn" data-filter="passed">Passed ({passed})</button>
             <button class="filter-btn" data-filter="failed">Failed ({failed})</button>
         </div>
-        <table class="scenarios-table">
-            <thead>
-                <tr>
-                    <th>Scenario</th>
-                    <th>Status</th>
-                    <th>Score</th>
-                    <th>Duration</th>
-                    <th>Details</th>
-                </tr>
-            </thead>
-            <tbody>
-                {scenarios_html}
-            </tbody>
-        </table>
+        {runs_html}
     </section>
 
     <footer>
@@ -234,6 +188,11 @@ class HtmlReportGenerator:
     </footer>
 
     <script>
+        // Render markdown content
+        document.querySelectorAll('.markdown-content').forEach(el => {{
+            el.innerHTML = marked.parse(el.textContent || '');
+        }});
+
         // Filter functionality
         document.querySelectorAll('.filter-btn').forEach(btn => {{
             btn.addEventListener('click', () => {{
@@ -249,6 +208,12 @@ class HtmlReportGenerator:
                         row.style.display = row.dataset.passed === 'false' ? '' : 'none';
                     }}
                 }});
+                // Update run section visibility based on visible rows
+                document.querySelectorAll('.test-run').forEach(run => {{
+                    const sel = '.scenario-row:not([style*="display: none"])';
+                    const visibleRows = run.querySelectorAll(sel);
+                    run.style.display = visibleRows.length > 0 ? '' : 'none';
+                }});
             }});
         }});
     </script>
@@ -257,15 +222,132 @@ class HtmlReportGenerator:
 """
         return html
 
+    def _build_runs_html(self, runs: dict[str, list[TestRunResult]]) -> str:
+        """Build HTML for all test runs grouped by run_id."""
+        sections = []
+
+        for run_id, run_results in runs.items():
+            # Get metadata from first result in run
+            first = run_results[0]
+            run_passed = sum(1 for r in run_results if r.judgment_result.passed)
+            run_failed = len(run_results) - run_passed
+            run_status = "pass" if run_failed == 0 else "fail"
+
+            # Build scenario rows for this run
+            scenario_rows = []
+            for result in run_results:
+                scenario_rows.append(self._build_scenario_row(result))
+
+            scenarios_html = "\n".join(scenario_rows)
+
+            run_time = first.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            section = f"""
+        <div class="test-run" data-run-id="{run_id[:8]}">
+            <div class="run-header {run_status}">
+                <div class="run-info">
+                    <span class="run-id">Run {run_id[:8]}</span>
+                    <span class="run-timestamp">{run_time}</span>
+                    <span class="run-model">{_escape_html(first.model_name)}</span>
+                </div>
+                <div class="run-stats">
+                    <span class="run-passed">{run_passed} passed</span>
+                    <span class="run-failed">{run_failed} failed</span>
+                </div>
+            </div>
+            <table class="scenarios-table">
+                <thead>
+                    <tr>
+                        <th>Scenario</th>
+                        <th>Status</th>
+                        <th>Score</th>
+                        <th>Duration</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {scenarios_html}
+                </tbody>
+            </table>
+        </div>
+            """
+            sections.append(section)
+
+        return "\n".join(sections)
+
+    def _build_scenario_row(self, result: TestRunResult) -> str:
+        """Build HTML for a single scenario row."""
+        status_class = "pass" if result.judgment_result.passed else "fail"
+        status_text = "PASS" if result.judgment_result.passed else "FAIL"
+
+        # Escape HTML in text fields
+        name = _escape_html(result.scenario_name)
+        reasoning = _escape_html(result.judgment_result.reasoning)
+
+        # Build tags
+        tags_html = " ".join(
+            f'<span class="tag">{_escape_html(tag)}</span>'
+            for tag in result.scenario_tags
+        )
+
+        # Build conversation transcript
+        conversation_html = self._build_conversation_html(result)
+
+        # Build correctness results
+        correctness_html = self._build_correctness_html(result)
+
+        # Build tool calls
+        tool_calls_html = self._build_tool_calls_html(result)
+
+        return f"""
+            <tr class="scenario-row" data-passed="{str(result.judgment_result.passed).lower()}">
+                <td>
+                    <strong>{name}</strong>
+                    <div class="tags">{tags_html}</div>
+                </td>
+                <td class="status {status_class}">{status_text}</td>
+                <td>{result.judgment_result.score:.2f}</td>
+                <td>{result.duration_seconds:.1f}s</td>
+                <td>
+                    <details>
+                        <summary>Details</summary>
+                        <div class="details-content">
+                            <h4>Reasoning</h4>
+                            <p>{reasoning}</p>
+
+                            <h4>Correctness Criteria</h4>
+                            {correctness_html}
+
+                            <h4>Conversation</h4>
+                            {conversation_html}
+
+                            <h4>Tool Calls ({len(result.conversation_result.total_tool_calls)})</h4>
+                            {tool_calls_html}
+                        </div>
+                    </details>
+                </td>
+            </tr>
+            """
+
     def _build_conversation_html(self, result: TestRunResult) -> str:
         """Build HTML for conversation transcript."""
         turns = []
         for turn in result.conversation_result.turns:
             role_class = "user" if turn.role == "user" else "assistant"
             content = _escape_html(turn.content)
-            turns.append(
-                f'<div class="turn {role_class}"><strong>{turn.role}:</strong> {content}</div>'
-            )
+            # Use markdown rendering for assistant responses
+            if turn.role == "assistant":
+                turns.append(
+                    f'<div class="turn {role_class}">'
+                    f"<strong>{turn.role}:</strong>"
+                    f'<div class="markdown-content">{content}</div>'
+                    f"</div>"
+                )
+            else:
+                turns.append(
+                    f'<div class="turn {role_class}">'
+                    f"<strong>{turn.role}:</strong> {content}"
+                    f"</div>"
+                )
         return '<div class="conversation">' + "\n".join(turns) + "</div>"
 
     def _build_correctness_html(self, result: TestRunResult) -> str:
@@ -287,11 +369,23 @@ class HtmlReportGenerator:
         items = []
         for tc in result.conversation_result.total_tool_calls:
             params = str(tc.parameters)
+            # Format result - truncate if too long
+            if tc.error:
+                result_html = f'<span class="error">Error: {_escape_html(tc.error)}</span>'
+            elif tc.result is not None:
+                result_str = str(tc.result)
+                if len(result_str) > MAX_TOOL_RESULT_LENGTH:
+                    result_str = result_str[:MAX_TOOL_RESULT_LENGTH] + "..."
+                result_html = f'<pre class="tool-result">{_escape_html(result_str)}</pre>'
+            else:
+                result_html = '<span class="no-result">No result returned</span>'
+
             items.append(
                 f'<div class="tool-call">'
                 f'<strong>{_escape_html(tc.tool_name)}</strong>'
                 f'<code>{_escape_html(params)}</code>'
                 f'<span class="latency">{tc.latency_ms:.0f}ms</span>'
+                f'{result_html}'
                 f'</div>'
             )
         return "\n".join(items)
