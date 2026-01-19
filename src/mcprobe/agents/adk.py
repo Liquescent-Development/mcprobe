@@ -51,6 +51,33 @@ class GeminiADKAgent(AgentUnderTest):
         """Human-readable agent name."""
         return self._name
 
+    def _process_function_responses(
+        self,
+        function_responses: list[Any],
+        pending_calls: dict[str, tuple[str, dict[str, Any], float]],
+    ) -> list[ToolCall]:
+        """Process function responses and create ToolCall objects."""
+        tool_calls: list[ToolCall] = []
+        for fr in function_responses:
+            call_id = fr.id or fr.name or "unknown"
+            if call_id in pending_calls:
+                name, params, start = pending_calls.pop(call_id)
+            else:
+                # Response without matching call - use response info
+                name = fr.name or "unknown"
+                params = {}
+                start = time.time()
+
+            tool_calls.append(
+                ToolCall(
+                    tool_name=name,
+                    parameters=params,
+                    result=fr.response,
+                    latency_ms=(time.time() - start) * 1000,
+                )
+            )
+        return tool_calls
+
     async def send_message(self, message: str) -> AgentResponse:
         """Send message to ADK agent and collect response with tool calls.
 
@@ -79,6 +106,7 @@ class GeminiADKAgent(AgentUnderTest):
         # Execute and collect results
         response_text = ""
         tool_calls: list[ToolCall] = []
+        pending_calls: dict[str, tuple[str, dict[str, Any], float]] = {}
 
         try:
             async for event in self._runner.run_async(
@@ -86,26 +114,39 @@ class GeminiADKAgent(AgentUnderTest):
                 session_id=self._session_id,
                 new_message=user_content,
             ):
-                # Track function calls
-                function_calls = event.get_function_calls()
-                if function_calls:
-                    for fc in function_calls:
-                        start = time.time()
-                        # Tool result comes in subsequent events
-                        tool_calls.append(
-                            ToolCall(
-                                tool_name=fc.name or "unknown",
-                                parameters=dict(fc.args) if fc.args else {},
-                                result=None,  # Filled by ADK internally
-                                latency_ms=(time.time() - start) * 1000,
-                            )
-                        )
+                # Track function calls (requests)
+                for fc in event.get_function_calls() or []:
+                    call_id = fc.id or fc.name or "unknown"
+                    pending_calls[call_id] = (
+                        fc.name or "unknown",
+                        dict(fc.args) if fc.args else {},
+                        time.time(),
+                    )
 
-                # Get final response
+                # Track function responses (results)
+                responses = event.get_function_responses()
+                if responses:
+                    tool_calls.extend(
+                        self._process_function_responses(responses, pending_calls)
+                    )
+
+                # Get final response text
                 if event.is_final_response() and event.content and event.content.parts:
                     for part in event.content.parts:
                         if hasattr(part, "text") and part.text:
                             response_text += part.text
+
+            # Handle any calls that never got responses
+            for _id, (name, params, start) in pending_calls.items():
+                tool_calls.append(
+                    ToolCall(
+                        tool_name=name,
+                        parameters=params,
+                        result=None,
+                        error="No response received",
+                        latency_ms=(time.time() - start) * 1000,
+                    )
+                )
         except Exception as e:
             msg = f"ADK agent execution failed: {e}"
             raise OrchestrationError(msg) from e
