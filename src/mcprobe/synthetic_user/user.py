@@ -132,16 +132,30 @@ class SyntheticUserLLM:
         Raises:
             OrchestrationError: If the LLM call fails.
         """
-        messages = list(self._conversation_history)
+        # Swap roles so the LLM naturally generates from the assistant position.
+        # This prevents smaller models from slipping into assistant behavior when
+        # they should be acting as the user. From the LLM's perspective:
+        # - Agent messages (originally "assistant") become "user" (incoming)
+        # - Synthetic user messages (originally "user") become "assistant" (outgoing)
+        # - System prompt stays as "system"
+        messages = []
+        for msg in self._conversation_history:
+            if msg.role == "assistant":
+                messages.append(Message(role="user", content=msg.content))
+            elif msg.role == "user":
+                messages.append(Message(role="assistant", content=msg.content))
+            else:
+                messages.append(msg)  # system stays as-is
 
         if guidance:
+            # Guidance comes from system, presented as user message in swapped context
             messages.append(Message(role="user", content=f"[Guidance: {guidance}]"))
 
         try:
             response = await self._provider.generate(messages=messages)
         except Exception as e:
-            msg = f"Synthetic user failed to generate response: {e}"
-            raise OrchestrationError(msg) from e
+            error_msg = f"Synthetic user failed to generate response: {e}"
+            raise OrchestrationError(error_msg) from e
 
         # Track token usage
         self._last_tokens_used = response.usage.get("prompt_tokens", 0) + response.usage.get(
