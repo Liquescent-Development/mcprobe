@@ -538,15 +538,20 @@ class HtmlReportGenerator:
                     f'</div>'
                 )
             elif tc.result is not None:
-                result_str = str(tc.result)
+                # Pretty-print if result is a dict/list, otherwise try parsing as JSON
+                if isinstance(tc.result, (dict, list)):
+                    result_str = json.dumps(tc.result, indent=2)
+                else:
+                    result_str = str(tc.result)
+                    # Try to parse and pretty-print if it's a JSON string
+                    try:
+                        result_obj = json.loads(result_str)
+                        result_str = json.dumps(result_obj, indent=2)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                # Truncate if too long
                 if len(result_str) > MAX_TOOL_RESULT_LENGTH:
                     result_str = result_str[:MAX_TOOL_RESULT_LENGTH] + "..."
-                # Try to pretty-print if it looks like JSON
-                try:
-                    result_obj = json.loads(result_str)
-                    result_str = json.dumps(result_obj, indent=2)
-                except (json.JSONDecodeError, TypeError):
-                    pass
                 result_html = (
                     f'<div class="tool-response success">'
                     f'<span class="response-label">Response:</span>'
