@@ -682,3 +682,42 @@ class TestHtmlGeneratorConfigDetails:
 
         assert "No system prompt captured" in html
         assert "No MCP tool schemas captured" in html
+
+
+class TestHumanizeCriterion:
+    """Tests for _humanize_criterion helper function."""
+
+    def test_snake_case_to_human_readable(self) -> None:
+        """Converts snake_case to human readable format."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("correct_temperature_returned")
+        assert result == "Correct temperature returned"
+
+    def test_single_word(self) -> None:
+        """Single word is capitalized."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("passed")
+        assert result == "Passed"
+
+    def test_already_capitalized(self) -> None:
+        """Already capitalized word stays capitalized."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("Valid_response")
+        assert result == "Valid response"
+
+    def test_empty_string(self) -> None:
+        """Empty string returns empty string."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("")
+        assert result == ""
+
+    def test_multiple_underscores(self) -> None:
+        """Multiple underscores are all converted to spaces."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("has_valid_api_response")
+        assert result == "Has valid api response"

@@ -245,7 +245,8 @@ details.test-run[open] > summary.run-header::before {
 /* Configuration details section */
 .config-details {
     border-top: 1px solid var(--color-border);
-    background: rgba(248, 249, 250, 0.5);
+    background: rgba(13, 110, 253, 0.08);
+    border-left: 3px solid rgba(13, 110, 253, 0.3);
 }
 
 .config-details > summary {
@@ -316,6 +317,16 @@ details.test-run[open] > summary.run-header::before {
     color: var(--color-text-muted);
     font-style: italic;
     font-size: 0.85rem;
+}
+
+/* System prompt rendered as markdown */
+.system-prompt-content {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.75rem;
+    max-height: 300px;
+    overflow-y: auto;
 }
 
 .tool-schema-item {
@@ -498,7 +509,7 @@ td details summary {
 
 /* Conversation */
 .conversation {
-    max-height: 300px;
+    max-height: 600px;
     overflow-y: auto;
     border: 1px solid var(--color-border);
     border-radius: 4px;
@@ -592,9 +603,8 @@ td details summary {
     padding: 0.25rem 0.5rem;
 }
 
-/* Tool Calls */
-.tool-call {
-    padding: 0.5rem;
+/* Tool Calls (collapsible) */
+details.tool-call {
     background: white;
     border: 1px solid var(--color-border);
     border-radius: 4px;
@@ -602,57 +612,90 @@ td details summary {
     font-size: 0.85rem;
 }
 
-.tool-call strong {
-    display: block;
-    margin-bottom: 0.25rem;
-}
-
-.tool-call code {
-    display: block;
+details.tool-call summary {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    list-style: none;
     background: var(--color-bg);
-    padding: 0.25rem 0.5rem;
-    border-radius: 2px;
-    font-size: 0.8rem;
-    overflow-x: auto;
 }
 
-.tool-call .latency {
-    display: block;
+details.tool-call summary::-webkit-details-marker {
+    display: none;
+}
+
+details.tool-call summary::before {
+    content: "▶";
+    font-size: 0.6rem;
+    transition: transform 0.2s;
+}
+
+details.tool-call[open] summary::before {
+    transform: rotate(90deg);
+}
+
+details.tool-call summary strong {
+    flex: 1;
+}
+
+details.tool-call .latency {
     color: var(--color-text-muted);
     font-size: 0.75rem;
-    margin-top: 0.25rem;
 }
 
-.tool-call .tool-result {
+/* Tool request and response sections */
+.tool-request,
+.tool-response {
+    padding: 0.75rem;
+}
+
+.tool-request {
+    border-top: 1px solid var(--color-border);
+}
+
+.request-label,
+.response-label {
     display: block;
-    background: #f0fff0;
-    border: 1px solid #90EE90;
-    padding: 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.tool-request pre,
+.tool-response pre {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
     border-radius: 4px;
+    padding: 0.5rem;
     font-size: 0.8rem;
-    margin-top: 0.5rem;
+    overflow-x: auto;
     max-height: 200px;
     overflow-y: auto;
     white-space: pre-wrap;
     word-break: break-word;
+    margin: 0;
 }
 
-.tool-call .error {
-    display: block;
+.tool-response.success pre {
+    background: #f0fff0;
+    border-color: #90EE90;
+}
+
+.tool-response.error pre {
     background: rgba(220, 53, 69, 0.1);
+    border-color: rgba(220, 53, 69, 0.3);
     color: var(--color-fail);
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    margin-top: 0.5rem;
 }
 
-.tool-call .no-result {
-    display: block;
+.tool-response .no-result {
     color: var(--color-text-muted);
     font-style: italic;
     font-size: 0.8rem;
-    margin-top: 0.25rem;
 }
 
 /* Footer */
