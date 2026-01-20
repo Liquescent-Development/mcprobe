@@ -131,6 +131,9 @@ class HtmlReportGenerator:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{_escape_html(title)}</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/json.min.js"></script>
     <style>
 {styles}
     </style>
@@ -194,6 +197,9 @@ class HtmlReportGenerator:
         document.querySelectorAll('.markdown-content').forEach(el => {{
             el.innerHTML = marked.parse(el.textContent || '');
         }});
+
+        // Syntax highlighting for JSON blocks
+        hljs.highlightAll();
 
         // Filter functionality
         document.querySelectorAll('.filter-btn').forEach(btn => {{
@@ -406,7 +412,7 @@ class HtmlReportGenerator:
                     f'<details class="tool-schema-item">'
                     f"<summary>{name}"
                     f'<span class="tool-description">{desc_short}</span></summary>'
-                    f"<pre>{_escape_html(schema_json)}</pre>"
+                    f'<pre><code class="language-json">{_escape_html(schema_json)}</code></pre>'
                     f"</details>"
                 )
             schemas_html = "\n".join(schema_items)
@@ -534,28 +540,18 @@ class HtmlReportGenerator:
                 result_html = (
                     f'<div class="tool-response error">'
                     f'<span class="response-label">Response (Error):</span>'
-                    f'<pre>{_escape_html(tc.error)}</pre>'
+                    f'<pre><code>{_escape_html(tc.error)}</code></pre>'
                     f'</div>'
                 )
             elif tc.result is not None:
-                # Pretty-print if result is a dict/list, otherwise try parsing as JSON
-                if isinstance(tc.result, (dict, list)):
-                    result_str = json.dumps(tc.result, indent=2)
-                else:
-                    result_str = str(tc.result)
-                    # Try to parse and pretty-print if it's a JSON string
-                    try:
-                        result_obj = json.loads(result_str)
-                        result_str = json.dumps(result_obj, indent=2)
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+                result_str = _format_tool_result(tc.result)
                 # Truncate if too long
                 if len(result_str) > MAX_TOOL_RESULT_LENGTH:
                     result_str = result_str[:MAX_TOOL_RESULT_LENGTH] + "..."
                 result_html = (
                     f'<div class="tool-response success">'
                     f'<span class="response-label">Response:</span>'
-                    f'<pre>{_escape_html(result_str)}</pre>'
+                    f'<pre><code class="language-json">{_escape_html(result_str)}</code></pre>'
                     f'</div>'
                 )
             else:
@@ -574,7 +570,7 @@ class HtmlReportGenerator:
                 f'</summary>'
                 f'<div class="tool-request">'
                 f'<span class="request-label">Request:</span>'
-                f'<pre>{_escape_html(params_json)}</pre>'
+                f'<pre><code class="language-json">{_escape_html(params_json)}</code></pre>'
                 f'</div>'
                 f'{result_html}'
                 f'</details>'
@@ -601,3 +597,38 @@ def _humanize_criterion(text: str) -> str:
         has_valid_response -> Has valid response
     """
     return text.replace("_", " ").capitalize()
+
+
+def _format_tool_result(result: object) -> str:
+    """Format a tool result for display, handling MCP response structures.
+
+    MCP responses often have structure like:
+    {"content": [{"type": "text", "text": "{\"key\": \"value\"}"}]}
+
+    This extracts the actual content and pretty-prints it.
+    """
+    # Handle MCP response structure: extract text content
+    if isinstance(result, dict):
+        content = result.get("content")
+        if isinstance(content, list) and len(content) > 0:
+            first_item = content[0]
+            if isinstance(first_item, dict) and first_item.get("type") == "text":
+                text_content = first_item.get("text", "")
+                # Try to parse and pretty-print if it's JSON
+                try:
+                    parsed = json.loads(text_content)
+                    return json.dumps(parsed, indent=2)
+                except (json.JSONDecodeError, TypeError):
+                    return str(text_content)
+
+    # Handle dict/list directly
+    if isinstance(result, (dict, list)):
+        return json.dumps(result, indent=2)
+
+    # Handle string that might be JSON
+    result_str = str(result)
+    try:
+        parsed = json.loads(result_str)
+        return json.dumps(parsed, indent=2)
+    except (json.JSONDecodeError, TypeError):
+        return result_str
