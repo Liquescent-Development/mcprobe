@@ -205,6 +205,28 @@ details.test-run[open] > summary.run-header::before {
     font-size: 0.75rem;
 }
 
+/* Configuration change badges */
+.config-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+}
+
+.config-badge.prompt-changed {
+    background: rgba(255, 193, 7, 0.2);
+    color: #856404;
+    border: 1px solid rgba(255, 193, 7, 0.5);
+}
+
+.config-badge.schema-changed {
+    background: rgba(23, 162, 184, 0.2);
+    color: #0c5460;
+    border: 1px solid rgba(23, 162, 184, 0.5);
+}
+
 .run-stats {
     display: flex;
     gap: 1rem;

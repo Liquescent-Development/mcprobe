@@ -103,3 +103,7 @@ class SimpleLLMAgent(AgentUnderTest):
     def conversation_history(self) -> list[Message]:
         """Get the current conversation history (read-only)."""
         return list(self._conversation_history)
+
+    def get_system_prompt(self) -> str | None:
+        """Return the agent's system prompt."""
+        return self._system_prompt

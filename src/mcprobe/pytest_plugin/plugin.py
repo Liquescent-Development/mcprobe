@@ -6,6 +6,8 @@ Provides pytest integration for running MCProbe test scenarios.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -34,6 +36,22 @@ from mcprobe.synthetic_user.user import SyntheticUserLLM
 if TYPE_CHECKING:
     from mcprobe.models.conversation import ConversationResult
     from mcprobe.models.judgment import JudgmentResult
+
+
+def compute_hash(content: str | list[Any] | dict[str, Any] | None) -> str | None:
+    """Compute SHA256 hash of content for change detection.
+
+    Args:
+        content: String, list, dict, or None to hash.
+
+    Returns:
+        First 16 characters of SHA256 hex digest, or None if content is None.
+    """
+    if content is None:
+        return None
+    if isinstance(content, (list, dict)):
+        content = json.dumps(content, sort_keys=True)
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
 @dataclass
@@ -164,6 +182,25 @@ class MCProbeItem(pytest.Item):
             # Simple agent uses synthetic_user config (shared LLM)
             agent = SimpleLLMAgent(synthetic_user_provider)
 
+        # Extract MCP tool schemas if server configured
+        mcp_schemas: list[dict[str, Any]] = []
+        if config.file_config and config.file_config.mcp_server:
+            try:
+                from mcprobe.generator.mcp_client import extract_tools  # noqa: PLC0415
+
+                server_tools = await extract_tools(config.file_config.mcp_server)
+                mcp_schemas = [
+                    {
+                        "name": t.name,
+                        "description": t.description,
+                        "input_schema": t.input_schema,
+                    }
+                    for t in server_tools.tools
+                ]
+            except Exception:
+                # Don't fail the test if schema extraction fails
+                pass
+
         # Reset agent for new scenario
         await agent.reset()
 
@@ -178,7 +215,9 @@ class MCProbeItem(pytest.Item):
         # Save results if enabled
         if config.save_results:
             model_name = config.cli_overrides.model or judge_config.model
-            await self._save_results(config.results_dir, model_name, agent_config.type)
+            await self._save_results(
+                config.results_dir, model_name, agent_config.type, agent, mcp_schemas
+            )
 
         # Assert the test passed
         if not self.judgment_result.passed:
@@ -212,6 +251,8 @@ class MCProbeItem(pytest.Item):
         results_dir: Path,
         model: str,
         agent_type: str,
+        agent: AgentUnderTest,
+        mcp_schemas: list[dict[str, Any]],
     ) -> None:
         """Save test results to storage.
 
@@ -219,6 +260,8 @@ class MCProbeItem(pytest.Item):
             results_dir: Directory to save results.
             model: Model name used.
             agent_type: Agent type used.
+            agent: The agent under test (for extracting system prompt).
+            mcp_schemas: MCP tool schemas extracted from server.
         """
         if self.conversation_result is None or self.judgment_result is None:
             return
@@ -228,6 +271,9 @@ class MCProbeItem(pytest.Item):
 
         # Use the session-level run_id so all tests in this run are grouped together
         run_id = getattr(self.config, "mcprobe_run_id", str(uuid.uuid4()))
+
+        # Extract system prompt from agent
+        system_prompt = agent.get_system_prompt()
 
         result = TestRunResult(
             run_id=run_id,
@@ -245,6 +291,11 @@ class MCProbeItem(pytest.Item):
             git_commit=git_commit,
             git_branch=git_branch,
             ci_environment=self._get_ci_environment(),
+            # Agent configuration capture
+            agent_system_prompt=system_prompt,
+            agent_system_prompt_hash=compute_hash(system_prompt),
+            mcp_tool_schemas=mcp_schemas,
+            mcp_tool_schemas_hash=compute_hash(mcp_schemas) if mcp_schemas else None,
         )
 
         storage = ResultStorage(results_dir)

@@ -226,6 +226,8 @@ class HtmlReportGenerator:
         """Build HTML for all test runs grouped by run_id."""
         sections = []
         is_first = True
+        prev_prompt_hash: str | None = None
+        prev_schema_hash: str | None = None
 
         for run_id, run_results in runs.items():
             # Get metadata from first result in run
@@ -234,6 +236,29 @@ class HtmlReportGenerator:
             run_failed = len(run_results) - run_passed
             run_status = "pass" if run_failed == 0 else "fail"
             run_total = len(run_results)
+
+            # Detect changes from previous run
+            current_prompt_hash = first.agent_system_prompt_hash
+            current_schema_hash = first.mcp_tool_schemas_hash
+            prompt_changed = (
+                prev_prompt_hash is not None
+                and current_prompt_hash is not None
+                and current_prompt_hash != prev_prompt_hash
+            )
+            schema_changed = (
+                prev_schema_hash is not None
+                and current_schema_hash is not None
+                and current_schema_hash != prev_schema_hash
+            )
+
+            # Build change badges HTML
+            change_badges = self._build_change_badges(prompt_changed, schema_changed)
+
+            # Update for next iteration
+            if current_prompt_hash is not None:
+                prev_prompt_hash = current_prompt_hash
+            if current_schema_hash is not None:
+                prev_schema_hash = current_schema_hash
 
             # Build scenario rows for this run
             scenario_rows = []
@@ -254,6 +279,7 @@ class HtmlReportGenerator:
                     <span class="run-id">Run {run_id[:8]}</span>
                     <span class="run-timestamp">{run_time}</span>
                     <span class="run-model">{_escape_html(first.model_name)}</span>
+                    {change_badges}
                 </div>
                 <div class="run-stats">
                     <span class="run-total">{run_total} tests</span>
@@ -282,6 +308,29 @@ class HtmlReportGenerator:
             sections.append(section)
 
         return "\n".join(sections)
+
+    def _build_change_badges(self, prompt_changed: bool, schema_changed: bool) -> str:
+        """Build HTML for configuration change indicator badges.
+
+        Args:
+            prompt_changed: Whether the system prompt changed from previous run.
+            schema_changed: Whether the MCP tool schemas changed from previous run.
+
+        Returns:
+            HTML string with change badges, or empty string if no changes.
+        """
+        badges = []
+        if prompt_changed:
+            badges.append(
+                '<span class="config-badge prompt-changed" '
+                'title="System prompt changed from previous run">Prompt Changed</span>'
+            )
+        if schema_changed:
+            badges.append(
+                '<span class="config-badge schema-changed" '
+                'title="MCP tool schemas changed from previous run">Schema Changed</span>'
+            )
+        return " ".join(badges)
 
     def _build_scenario_row(self, result: TestRunResult) -> str:
         """Build HTML for a single scenario row."""

@@ -84,11 +84,32 @@ Counters show the number of results in each category.
 
 A detailed table showing all test results with columns:
 
-1. **Scenario**: Scenario name and tags
+1. **Scenario**: Scenario name, tags, and change badges
 2. **Status**: PASS or FAIL (color-coded)
 3. **Score**: Numerical judgment score (0-100)
 4. **Duration**: Execution time in seconds
 5. **Details**: Expandable details section
+
+#### Change Detection Badges
+
+When configuration tracking is enabled, HTML reports display badges to indicate changes from the previous run:
+
+**Prompt Changed Badge** (Yellow):
+- Displayed when the agent's system prompt differs from the previous run
+- Helps identify if test behavior changes correlate with prompt modifications
+- Color: Yellow/amber background with dark text
+
+**Schema Changed Badge** (Cyan):
+- Displayed when MCP tool schemas differ from the previous run
+- Helps identify if test failures correlate with tool schema changes
+- Color: Cyan/teal background with dark text
+
+These badges appear next to the scenario name in the table, making it easy to spot when configuration changes may have impacted test results.
+
+**Example scenario row with badges:**
+```
+Weather Query Test  [Prompt Changed] [Schema Changed]  PASS  0.92  1.2s
+```
 
 ### Details Section
 
@@ -282,6 +303,69 @@ mcprobe report \
   --output reports/staging-report.html
 ```
 
+## Change Tracking Configuration
+
+To enable prompt and schema tracking in HTML reports, configure an MCP server connection in your `mcprobe.yaml`:
+
+### Enabling Schema Tracking
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ollama
+  model: llama3.2
+
+# Enable schema tracking
+mcp_server:
+  command: "npx @modelcontextprotocol/server-weather"
+  # OR for HTTP-based MCP server:
+  # url: "http://localhost:8080/mcp"
+  # OR with authentication:
+  # url: "http://localhost:8080/mcp"
+  # headers:
+  #   Authorization: "Bearer ${API_TOKEN:-dev}"
+
+results:
+  save: true
+  dir: test-results
+```
+
+### How It Works
+
+1. **During test execution**: MCProbe connects to the configured MCP server and extracts tool schemas
+2. **Schema storage**: Tool schemas are stored with each test result along with a SHA256 hash
+3. **Change detection**: When generating HTML reports, MCProbe compares hashes between consecutive runs
+4. **Badge display**: If schemas differ, a "Schema Changed" badge appears in the report
+
+### Supported Agents for Prompt Tracking
+
+Prompt tracking is currently supported for:
+
+- **SimpleLLMAgent**: Returns the configured system prompt
+- **GeminiADKAgent**: Returns the agent's instruction attribute (if set as a string)
+
+Custom agents can implement the `get_system_prompt()` method to enable prompt tracking.
+
+### Use Cases
+
+**Debugging regressions:**
+```
+Scenario: Weather Query
+Status: FAIL [Schema Changed]
+```
+The badge indicates the failure may be due to schema changes.
+
+**Validating improvements:**
+```
+Scenario: Complex Query
+Status: PASS [Prompt Changed]
+Score: 0.95 (was 0.72)
+```
+The improved score correlates with a prompt change.
+
+**Tracking configuration drift:**
+Generate periodic reports to visualize when prompts or schemas change, helping maintain configuration stability in production.
+
 ## Report Analysis Tips
 
 ### Identifying Patterns
@@ -292,6 +376,7 @@ Use the HTML report to identify patterns:
 2. **Check reasoning** to understand failure causes
 3. **Review conversation transcripts** to see where things went wrong
 4. **Analyze tool calls** to spot inefficiencies or errors
+5. **Look for change badges** to correlate failures with configuration changes
 
 ### Comparing Runs
 

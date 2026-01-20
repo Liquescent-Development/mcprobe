@@ -8,6 +8,7 @@ A conversational testing framework for MCP (Model Context Protocol) servers. MCP
 - **Synthetic Users**: Configurable user personas with different patience levels, expertise, and communication styles
 - **Automated Evaluation**: LLM-based judge evaluates correctness, tool usage, and efficiency
 - **Multiple Agent Types**: Test simple LLM agents or Gemini ADK agents with MCP tools
+- **Prompt & Schema Tracking**: Track agent prompts and MCP tool schemas across runs with automatic change detection
 - **Trend Analysis**: Track test performance over time and detect regressions
 - **Flaky Detection**: Identify inconsistent tests automatically
 - **CI/CD Integration**: pytest plugin, JUnit XML reports, GitHub Actions support
@@ -87,6 +88,16 @@ llm:
   provider: ollama
   model: llama3.2
   base_url: http://localhost:11434
+
+# Optional: Track MCP schema changes
+mcp_server:
+  command: "npx @modelcontextprotocol/server-weather"
+  # OR for HTTP-based MCP server:
+  # url: "http://localhost:8080/mcp"
+  # OR with authentication:
+  # url: "http://localhost:8080/mcp"
+  # headers:
+  #   Authorization: "Bearer ${API_TOKEN:-dev}"
 ```
 
 Then run:

@@ -186,6 +186,19 @@ class GeminiADKAgent(AgentUnderTest):
         # For now, return empty list - can be enhanced later
         return []
 
+    def get_system_prompt(self) -> str | None:
+        """Return ADK agent's instruction (system prompt).
+
+        Returns:
+            The instruction string if available, otherwise None.
+        """
+        if hasattr(self._agent, "instruction"):
+            instruction = self._agent.instruction
+            # instruction can be a string or a callable; we only return strings
+            if isinstance(instruction, str):
+                return instruction
+        return None
+
 
 def load_agent_factory(module_path: str) -> Callable[[], "LlmAgent"]:
     """Load agent factory function from a Python module.
