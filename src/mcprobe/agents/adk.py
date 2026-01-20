@@ -199,6 +199,16 @@ class GeminiADKAgent(AgentUnderTest):
                 return instruction
         return None
 
+    def get_model_name(self) -> str | None:
+        """Return the model name used by this ADK agent.
+
+        Returns:
+            The model name string if available, otherwise None.
+        """
+        if hasattr(self._agent, "model"):
+            return str(self._agent.model)
+        return None
+
 
 def load_agent_factory(module_path: str) -> Callable[[], "LlmAgent"]:
     """Load agent factory function from a Python module.

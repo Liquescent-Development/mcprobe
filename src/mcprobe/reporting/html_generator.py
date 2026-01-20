@@ -287,13 +287,18 @@ class HtmlReportGenerator:
             # Build config details section
             config_details_html = self._build_config_details_html(first)
 
+            # Build model badges
+            model_badges = self._build_model_badges(
+                first.judge_model, first.synthetic_user_model, first.agent_model
+            )
+
             section = f"""
         <details class="test-run {run_status}" data-run-id="{run_id[:8]}"{open_attr}>
             <summary class="run-header">
                 <div class="run-info">
                     <span class="run-id">Run {run_id[:8]}</span>
                     <span class="run-timestamp">{run_time}</span>
-                    <span class="run-model">{_escape_html(first.model_name)}</span>
+                    {model_badges}
                     {hash_badges}
                     {change_badges}
                 </div>
@@ -348,6 +353,34 @@ class HtmlReportGenerator:
                 'title="MCP tool schemas changed from previous run">Schema Changed</span>'
             )
         return " ".join(badges)
+
+    def _build_model_badges(
+        self,
+        judge_model: str,
+        synthetic_user_model: str,
+        agent_model: str | None,
+    ) -> str:
+        """Build HTML for model badges showing all LLM components.
+
+        Args:
+            judge_model: Model name used for the judge.
+            synthetic_user_model: Model name used for the synthetic user.
+            agent_model: Model name used for the agent (may be None for ADK).
+
+        Returns:
+            HTML string with model badges.
+        """
+        agent_display = _escape_html(agent_model) if agent_model else "N/A"
+        return (
+            f'<span class="model-badges">'
+            f'<span class="model-badge" title="Judge LLM model">'
+            f'<span class="model-label">Judge:</span>{_escape_html(judge_model)}</span>'
+            f'<span class="model-badge" title="Synthetic User LLM model">'
+            f'<span class="model-label">User:</span>{_escape_html(synthetic_user_model)}</span>'
+            f'<span class="model-badge" title="Agent LLM model">'
+            f'<span class="model-label">Agent:</span>{agent_display}</span>'
+            f'</span>'
+        )
 
     def _build_hash_badges(
         self, prompt_hash: str | None, schema_hash: str | None

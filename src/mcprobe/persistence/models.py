@@ -27,8 +27,12 @@ class TestRunResult(BaseModel):
 
     # Context
     agent_type: str
-    model_name: str
     duration_seconds: float
+
+    # LLM models used
+    judge_model: str
+    synthetic_user_model: str
+    agent_model: str | None = None  # None for ADK agents that don't expose model name
 
     # Environment
     mcprobe_version: str

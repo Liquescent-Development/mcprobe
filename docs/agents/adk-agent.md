@@ -480,7 +480,22 @@ Choose appropriate model for your use case:
 - **Production Validation:** `gemini-2.0-pro` (more capable)
 - **High Volume:** `gemini-2.0-flash` (cost-effective)
 
-### 6. Environment-Based Configuration
+### 6. Model Name Tracking
+
+MCProbe automatically captures the model name from your ADK agent for reporting. The model name is extracted from the `LlmAgent.model` attribute. To ensure your model appears in HTML reports:
+
+```python
+# The model is captured automatically from the LlmAgent
+agent = LlmAgent(
+    model=os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),  # This appears in reports
+    name="my_agent",
+    # ... other config
+)
+```
+
+If the model is not set or cannot be determined, reports will show "N/A" for the agent model.
+
+### 7. Environment-Based Configuration
 
 Use environment variables for flexibility:
 

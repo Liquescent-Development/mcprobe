@@ -80,6 +80,21 @@ Interactive filter buttons allow you to view:
 
 Counters show the number of results in each category.
 
+### Test Runs
+
+Results are grouped by test run (pytest session). Each run header displays:
+
+- **Run ID**: Unique identifier for the test run (first 8 characters)
+- **Timestamp**: When the run was executed
+- **Model Badges**: Three badges showing the LLM models used:
+  - **Judge**: Model used for evaluating test results
+  - **User**: Model used for the synthetic user
+  - **Agent**: Model used by the agent under test (or "N/A" for ADK agents that don't expose model info)
+- **Hash Badges**: Configuration tracking hashes (see Change Detection Badges below)
+- **Run Statistics**: Number of tests passed/failed in this run
+
+Click on a run to expand and see detailed test results.
+
 ### Scenarios Table
 
 A detailed table showing all test results with columns:

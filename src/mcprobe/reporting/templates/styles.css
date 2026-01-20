@@ -197,12 +197,23 @@ details.test-run[open] > summary.run-header::before {
     font-size: 0.85rem;
 }
 
-.run-model {
+/* Model badges container */
+.model-badges {
+    display: inline-flex;
+    gap: 0.5rem;
+}
+
+.model-badge {
     background: var(--color-primary);
     color: white;
     padding: 0.125rem 0.5rem;
     border-radius: 12px;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
+}
+
+.model-badge .model-label {
+    opacity: 0.8;
+    margin-right: 0.25rem;
 }
 
 /* Configuration change badges */
