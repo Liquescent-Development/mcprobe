@@ -28,7 +28,6 @@ def _get_styles() -> str:
     return styles_file.read_text()
 
 
-MAX_TOOL_RESULT_LENGTH = 500
 MAX_DESCRIPTION_LENGTH = 80
 
 
@@ -545,9 +544,6 @@ class HtmlReportGenerator:
                 )
             elif tc.result is not None:
                 result_str = _format_tool_result(tc.result)
-                # Truncate if too long
-                if len(result_str) > MAX_TOOL_RESULT_LENGTH:
-                    result_str = result_str[:MAX_TOOL_RESULT_LENGTH] + "..."
                 result_html = (
                     f'<div class="tool-response success">'
                     f'<span class="response-label">Response:</span>'
