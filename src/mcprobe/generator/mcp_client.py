@@ -5,9 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+import httpx
 from mcp import ClientSession
-from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.client.streamable_http import streamable_http_client
 
 if TYPE_CHECKING:
     from mcprobe.config.loader import MCPServerConfig
@@ -80,8 +81,10 @@ async def extract_tools_from_http(
 ) -> ServerTools:
     """Extract tool schemas from HTTP-based MCP server.
 
+    Uses Streamable HTTP transport which is the standard for HTTP MCP servers.
+
     Args:
-        url: URL of the MCP server SSE endpoint (e.g., "http://localhost:8080/mcp")
+        url: URL of the MCP server endpoint (e.g., "http://localhost:8080/mcp")
         headers: Optional headers to include in requests (e.g., for authentication)
 
     Returns:
@@ -95,24 +98,35 @@ async def extract_tools_from_http(
         msg = "Server URL cannot be empty"
         raise ValueError(msg)
 
-    async with (
-        sse_client(url, headers=headers) as (read_stream, write_stream),
-        ClientSession(read_stream, write_stream) as session,
-    ):
-        await session.initialize()
-        result = await session.list_tools()
+    # Create httpx client with headers if provided
+    http_client = httpx.AsyncClient(headers=headers) if headers else None
 
-        tools = [
-            ToolSchema(
-                name=tool.name,
-                description=tool.description,
-                input_schema=tool.inputSchema,
-                output_schema=getattr(tool, "outputSchema", None),
-            )
-            for tool in result.tools
-        ]
+    try:
+        async with (
+            streamable_http_client(url, http_client=http_client) as (
+                read_stream,
+                write_stream,
+                _get_session_id,
+            ),
+            ClientSession(read_stream, write_stream) as session,
+        ):
+            await session.initialize()
+            result = await session.list_tools()
 
-        return ServerTools(tools=tools)
+            tools = [
+                ToolSchema(
+                    name=tool.name,
+                    description=tool.description,
+                    input_schema=tool.inputSchema,
+                    output_schema=getattr(tool, "outputSchema", None),
+                )
+                for tool in result.tools
+            ]
+
+            return ServerTools(tools=tools)
+    finally:
+        if http_client:
+            await http_client.aclose()
 
 
 async def extract_tools(config: MCPServerConfig) -> ServerTools:
