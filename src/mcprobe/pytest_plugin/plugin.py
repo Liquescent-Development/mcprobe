@@ -214,9 +214,13 @@ class MCProbeItem(pytest.Item):
 
         # Save results if enabled
         if config.save_results:
-            model_name = config.cli_overrides.model or judge_config.model
             await self._save_results(
-                config.results_dir, model_name, agent_config.type, agent, mcp_schemas
+                results_dir=config.results_dir,
+                agent_type=agent_config.type,
+                agent=agent,
+                mcp_schemas=mcp_schemas,
+                judge_model=judge_config.model,
+                synthetic_user_model=synthetic_user_config.model,
             )
 
         # Assert the test passed
@@ -246,22 +250,24 @@ class MCProbeItem(pytest.Item):
         adk_agent = factory()
         return GeminiADKAgent(adk_agent)
 
-    async def _save_results(
+    async def _save_results(  # noqa: PLR0913
         self,
         results_dir: Path,
-        model: str,
         agent_type: str,
         agent: AgentUnderTest,
         mcp_schemas: list[dict[str, Any]],
+        judge_model: str,
+        synthetic_user_model: str,
     ) -> None:
         """Save test results to storage.
 
         Args:
             results_dir: Directory to save results.
-            model: Model name used.
             agent_type: Agent type used.
-            agent: The agent under test (for extracting system prompt).
+            agent: The agent under test (for extracting system prompt and model).
             mcp_schemas: MCP tool schemas extracted from server.
+            judge_model: Model name used for the judge.
+            synthetic_user_model: Model name used for the synthetic user.
         """
         if self.conversation_result is None or self.judgment_result is None:
             return
@@ -275,6 +281,14 @@ class MCProbeItem(pytest.Item):
         # Extract system prompt from agent
         system_prompt = agent.get_system_prompt()
 
+        # Determine agent model: for simple agents it's the same as synthetic_user,
+        # for ADK agents try to get it from the agent itself
+        agent_model_name: str | None
+        if agent_type == "simple":
+            agent_model_name = synthetic_user_model
+        else:
+            agent_model_name = agent.get_model_name()
+
         result = TestRunResult(
             run_id=run_id,
             timestamp=datetime.now(),
@@ -284,8 +298,11 @@ class MCProbeItem(pytest.Item):
             conversation_result=self.conversation_result,
             judgment_result=self.judgment_result,
             agent_type=agent_type,
-            model_name=model,
             duration_seconds=self.conversation_result.duration_seconds,
+            # LLM models used
+            judge_model=judge_model,
+            synthetic_user_model=synthetic_user_model,
+            agent_model=agent_model_name,
             mcprobe_version=__version__,
             python_version=sys.version.split()[0],
             git_commit=git_commit,

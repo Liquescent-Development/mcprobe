@@ -70,3 +70,15 @@ class AgentUnderTest(ABC):
             The system prompt string, or None if not available.
         """
         return None
+
+    def get_model_name(self) -> str | None:
+        """Return the model name used by this agent if available.
+
+        This is used to track which model the agent uses, which can affect
+        test results. Implementations should override this if they have
+        access to the model information.
+
+        Returns:
+            The model name string, or None if not available.
+        """
+        return None

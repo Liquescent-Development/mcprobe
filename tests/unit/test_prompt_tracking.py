@@ -163,7 +163,9 @@ class TestTestRunResultModel:
                 reasoning="Test passed",
             ),
             agent_type="simple",
-            model_name="test-model",
+            judge_model="test-model",
+            synthetic_user_model="test-model",
+            agent_model="test-model",
             duration_seconds=1.0,
             mcprobe_version="0.1.0",
             python_version="3.12.0",
@@ -234,7 +236,9 @@ class TestTestRunResultModel:
                 reasoning="Passed",
             ),
             agent_type="simple",
-            model_name="old-model",
+            judge_model="old-model",
+            synthetic_user_model="old-model",
+            agent_model="old-model",
             duration_seconds=0.5,
             mcprobe_version="0.0.1",
             python_version="3.11.0",
@@ -526,7 +530,9 @@ class TestHtmlGeneratorConfigDetails:
                 reasoning="Test passed",
             ),
             agent_type="simple",
-            model_name="test-model",
+            judge_model="test-model",
+            synthetic_user_model="test-model",
+            agent_model="test-model",
             duration_seconds=1.0,
             mcprobe_version="0.1.0",
             python_version="3.12.0",
@@ -595,7 +601,9 @@ class TestHtmlGeneratorConfigDetails:
                 reasoning="Test passed",
             ),
             agent_type="simple",
-            model_name="test-model",
+            judge_model="test-model",
+            synthetic_user_model="test-model",
+            agent_model="test-model",
             duration_seconds=1.0,
             mcprobe_version="0.1.0",
             python_version="3.12.0",
@@ -671,7 +679,9 @@ class TestHtmlGeneratorConfigDetails:
                 reasoning="Test passed",
             ),
             agent_type="simple",
-            model_name="test-model",
+            judge_model="test-model",
+            synthetic_user_model="test-model",
+            agent_model="test-model",
             duration_seconds=1.0,
             mcprobe_version="0.1.0",
             python_version="3.12.0",
@@ -682,3 +692,42 @@ class TestHtmlGeneratorConfigDetails:
 
         assert "No system prompt captured" in html
         assert "No MCP tool schemas captured" in html
+
+
+class TestHumanizeCriterion:
+    """Tests for _humanize_criterion helper function."""
+
+    def test_snake_case_to_human_readable(self) -> None:
+        """Converts snake_case to human readable format."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("correct_temperature_returned")
+        assert result == "Correct temperature returned"
+
+    def test_single_word(self) -> None:
+        """Single word is capitalized."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("passed")
+        assert result == "Passed"
+
+    def test_already_capitalized(self) -> None:
+        """Already capitalized word stays capitalized."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("Valid_response")
+        assert result == "Valid response"
+
+    def test_empty_string(self) -> None:
+        """Empty string returns empty string."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("")
+        assert result == ""
+
+    def test_multiple_underscores(self) -> None:
+        """Multiple underscores are all converted to spaces."""
+        from mcprobe.reporting.html_generator import _humanize_criterion
+
+        result = _humanize_criterion("has_valid_api_response")
+        assert result == "Has valid api response"
