@@ -1,9 +1,7 @@
 """Tests for prompt and schema tracking functionality (GH Issue #24)."""
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
-
-import pytest
+from unittest.mock import MagicMock
 
 from mcprobe.agents.simple import SimpleLLMAgent
 from mcprobe.config import FileConfig, MCPServerConfig
@@ -20,6 +18,7 @@ class TestComputeHash:
         result2 = compute_hash("test string")
 
         assert result1 == result2
+        assert result1 is not None
         assert len(result1) == 16  # First 16 chars of SHA256
 
     def test_compute_hash_different_strings(self) -> None:
@@ -40,6 +39,7 @@ class TestComputeHash:
         result2 = compute_hash(data)
 
         assert result1 == result2
+        assert result1 is not None
         assert len(result1) == 16
 
     def test_compute_hash_dict_order_independent(self) -> None:
@@ -117,7 +117,11 @@ class TestTestRunResultModel:
         import time
         from datetime import datetime
 
-        from mcprobe.models.conversation import ConversationResult, ConversationTurn
+        from mcprobe.models.conversation import (
+            ConversationResult,
+            ConversationTurn,
+            TerminationReason,
+        )
         from mcprobe.models.judgment import JudgmentResult
         from mcprobe.persistence import TestRunResult
 
@@ -132,7 +136,7 @@ class TestTestRunResultModel:
                 total_tool_calls=[],
                 total_tokens=10,
                 duration_seconds=1.0,
-                termination_reason="user_satisfied",
+                termination_reason=TerminationReason.USER_SATISFIED,
             ),
             judgment_result=JudgmentResult(
                 passed=True,
@@ -183,7 +187,11 @@ class TestTestRunResultModel:
         import time
         from datetime import datetime
 
-        from mcprobe.models.conversation import ConversationResult, ConversationTurn
+        from mcprobe.models.conversation import (
+            ConversationResult,
+            ConversationTurn,
+            TerminationReason,
+        )
         from mcprobe.models.judgment import JudgmentResult
         from mcprobe.persistence import TestRunResult
 
@@ -199,7 +207,7 @@ class TestTestRunResultModel:
                 total_tool_calls=[],
                 total_tokens=5,
                 duration_seconds=0.5,
-                termination_reason="user_satisfied",
+                termination_reason=TerminationReason.USER_SATISFIED,
             ),
             judgment_result=JudgmentResult(
                 passed=True,
@@ -406,3 +414,271 @@ class TestHtmlGeneratorChangeBadges:
         result = generator._build_change_badges(prompt_changed=False, schema_changed=False)
 
         assert result == ""
+
+
+class TestHtmlGeneratorHashBadges:
+    """Tests for hash badges in HTML generator."""
+
+    def test_build_hash_badges_with_prompt_hash(self) -> None:
+        """Badge shown when prompt hash provided."""
+        from mcprobe.reporting.html_generator import HtmlReportGenerator
+
+        generator = HtmlReportGenerator()
+        result = generator._build_hash_badges(
+            prompt_hash="abc123def456", schema_hash=None
+        )
+
+        assert "Prompt:" in result
+        assert "abc123de" in result  # First 8 chars of hash
+        assert "hash-badge" in result
+        assert "Schema:" not in result
+
+    def test_build_hash_badges_with_schema_hash(self) -> None:
+        """Badge shown when schema hash provided."""
+        from mcprobe.reporting.html_generator import HtmlReportGenerator
+
+        generator = HtmlReportGenerator()
+        result = generator._build_hash_badges(
+            prompt_hash=None, schema_hash="xyz789uvw012"
+        )
+
+        assert "Schema:" in result
+        assert "xyz789uv" in result  # First 8 chars of hash
+        assert "hash-badge" in result
+        assert "Prompt:" not in result
+
+    def test_build_hash_badges_with_both_hashes(self) -> None:
+        """Both badges shown when both hashes provided."""
+        from mcprobe.reporting.html_generator import HtmlReportGenerator
+
+        generator = HtmlReportGenerator()
+        result = generator._build_hash_badges(
+            prompt_hash="abc123def456", schema_hash="xyz789uvw012"
+        )
+
+        assert "Prompt:" in result
+        assert "Schema:" in result
+        assert "abc123de" in result
+        assert "xyz789uv" in result
+
+    def test_build_hash_badges_no_hashes(self) -> None:
+        """Empty string when no hashes provided."""
+        from mcprobe.reporting.html_generator import HtmlReportGenerator
+
+        generator = HtmlReportGenerator()
+        result = generator._build_hash_badges(prompt_hash=None, schema_hash=None)
+
+        assert result == ""
+
+
+class TestHtmlGeneratorConfigDetails:
+    """Tests for config details section in HTML generator."""
+
+    def test_build_config_details_with_prompt(self) -> None:
+        """Config details shows system prompt when present."""
+        import time
+        from datetime import datetime
+
+        from mcprobe.models.conversation import (
+            ConversationResult,
+            ConversationTurn,
+            TerminationReason,
+        )
+        from mcprobe.models.judgment import JudgmentResult
+        from mcprobe.persistence import TestRunResult
+        from mcprobe.reporting.html_generator import HtmlReportGenerator
+
+        result = TestRunResult(
+            run_id="test-123",
+            timestamp=datetime.now(),
+            scenario_name="Test Scenario",
+            scenario_file="/path/to/scenario.yaml",
+            conversation_result=ConversationResult(
+                turns=[ConversationTurn(role="user", content="Hello", timestamp=time.time())],
+                final_answer="Hi!",
+                total_tool_calls=[],
+                total_tokens=10,
+                duration_seconds=1.0,
+                termination_reason=TerminationReason.USER_SATISFIED,
+            ),
+            judgment_result=JudgmentResult(
+                passed=True,
+                score=1.0,
+                correctness_results={},
+                failure_results={},
+                tool_usage_results={
+                    "required_tools": [],
+                    "required_tools_used": [],
+                    "prohibited_tools": [],
+                    "prohibited_tools_used": [],
+                    "all_required_used": True,
+                    "no_prohibited_used": True,
+                    "criteria_results": {},
+                },
+                efficiency_results={
+                    "total_tool_calls": 0,
+                    "max_tool_calls": 10,
+                    "total_turns": 1,
+                    "max_turns": 5,
+                    "within_limits": True,
+                    "total_tokens": 10,
+                },
+                reasoning="Test passed",
+            ),
+            agent_type="simple",
+            model_name="test-model",
+            duration_seconds=1.0,
+            mcprobe_version="0.1.0",
+            python_version="3.12.0",
+            agent_system_prompt="You are a helpful assistant.",
+            agent_system_prompt_hash="abc123",
+            mcp_tool_schemas=[],
+            mcp_tool_schemas_hash=None,
+        )
+
+        generator = HtmlReportGenerator()
+        html = generator._build_config_details_html(result)
+
+        assert "System Prompt" in html
+        assert "You are a helpful assistant." in html
+        assert "config-details" in html
+
+    def test_build_config_details_with_schemas(self) -> None:
+        """Config details shows tool schemas when present."""
+        import time
+        from datetime import datetime
+
+        from mcprobe.models.conversation import (
+            ConversationResult,
+            ConversationTurn,
+            TerminationReason,
+        )
+        from mcprobe.models.judgment import JudgmentResult
+        from mcprobe.persistence import TestRunResult
+        from mcprobe.reporting.html_generator import HtmlReportGenerator
+
+        result = TestRunResult(
+            run_id="test-456",
+            timestamp=datetime.now(),
+            scenario_name="Test Scenario",
+            scenario_file="/path/to/scenario.yaml",
+            conversation_result=ConversationResult(
+                turns=[ConversationTurn(role="user", content="Hello", timestamp=time.time())],
+                final_answer="Hi!",
+                total_tool_calls=[],
+                total_tokens=10,
+                duration_seconds=1.0,
+                termination_reason=TerminationReason.USER_SATISFIED,
+            ),
+            judgment_result=JudgmentResult(
+                passed=True,
+                score=1.0,
+                correctness_results={},
+                failure_results={},
+                tool_usage_results={
+                    "required_tools": [],
+                    "required_tools_used": [],
+                    "prohibited_tools": [],
+                    "prohibited_tools_used": [],
+                    "all_required_used": True,
+                    "no_prohibited_used": True,
+                    "criteria_results": {},
+                },
+                efficiency_results={
+                    "total_tool_calls": 0,
+                    "max_tool_calls": 10,
+                    "total_turns": 1,
+                    "max_turns": 5,
+                    "within_limits": True,
+                    "total_tokens": 10,
+                },
+                reasoning="Test passed",
+            ),
+            agent_type="simple",
+            model_name="test-model",
+            duration_seconds=1.0,
+            mcprobe_version="0.1.0",
+            python_version="3.12.0",
+            agent_system_prompt=None,
+            agent_system_prompt_hash=None,
+            mcp_tool_schemas=[
+                {
+                    "name": "get_weather",
+                    "description": "Get weather for a location",
+                    "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}},
+                }
+            ],
+            mcp_tool_schemas_hash="xyz789",
+        )
+
+        generator = HtmlReportGenerator()
+        html = generator._build_config_details_html(result)
+
+        assert "MCP Tool Schemas (1)" in html
+        assert "get_weather" in html
+        assert "Get weather for a location" in html
+        assert "tool-schema-item" in html
+
+    def test_build_config_details_no_data(self) -> None:
+        """Config details shows 'no data' messages when empty."""
+        import time
+        from datetime import datetime
+
+        from mcprobe.models.conversation import (
+            ConversationResult,
+            ConversationTurn,
+            TerminationReason,
+        )
+        from mcprobe.models.judgment import JudgmentResult
+        from mcprobe.persistence import TestRunResult
+        from mcprobe.reporting.html_generator import HtmlReportGenerator
+
+        result = TestRunResult(
+            run_id="test-789",
+            timestamp=datetime.now(),
+            scenario_name="Test Scenario",
+            scenario_file="/path/to/scenario.yaml",
+            conversation_result=ConversationResult(
+                turns=[ConversationTurn(role="user", content="Hello", timestamp=time.time())],
+                final_answer="Hi!",
+                total_tool_calls=[],
+                total_tokens=10,
+                duration_seconds=1.0,
+                termination_reason=TerminationReason.USER_SATISFIED,
+            ),
+            judgment_result=JudgmentResult(
+                passed=True,
+                score=1.0,
+                correctness_results={},
+                failure_results={},
+                tool_usage_results={
+                    "required_tools": [],
+                    "required_tools_used": [],
+                    "prohibited_tools": [],
+                    "prohibited_tools_used": [],
+                    "all_required_used": True,
+                    "no_prohibited_used": True,
+                    "criteria_results": {},
+                },
+                efficiency_results={
+                    "total_tool_calls": 0,
+                    "max_tool_calls": 10,
+                    "total_turns": 1,
+                    "max_turns": 5,
+                    "within_limits": True,
+                    "total_tokens": 10,
+                },
+                reasoning="Test passed",
+            ),
+            agent_type="simple",
+            model_name="test-model",
+            duration_seconds=1.0,
+            mcprobe_version="0.1.0",
+            python_version="3.12.0",
+        )
+
+        generator = HtmlReportGenerator()
+        html = generator._build_config_details_html(result)
+
+        assert "No system prompt captured" in html
+        assert "No MCP tool schemas captured" in html

@@ -5,6 +5,7 @@ Generates beautiful, self-contained HTML reports from test run results.
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from datetime import datetime
 from importlib.resources import files
@@ -28,6 +29,7 @@ def _get_styles() -> str:
 
 
 MAX_TOOL_RESULT_LENGTH = 500
+MAX_DESCRIPTION_LENGTH = 80
 
 
 class HtmlReportGenerator:
@@ -272,6 +274,14 @@ class HtmlReportGenerator:
             open_attr = " open" if is_first else ""
             is_first = False
 
+            # Build hash badges
+            hash_badges = self._build_hash_badges(
+                current_prompt_hash, current_schema_hash
+            )
+
+            # Build config details section
+            config_details_html = self._build_config_details_html(first)
+
             section = f"""
         <details class="test-run {run_status}" data-run-id="{run_id[:8]}"{open_attr}>
             <summary class="run-header">
@@ -279,6 +289,7 @@ class HtmlReportGenerator:
                     <span class="run-id">Run {run_id[:8]}</span>
                     <span class="run-timestamp">{run_time}</span>
                     <span class="run-model">{_escape_html(first.model_name)}</span>
+                    {hash_badges}
                     {change_badges}
                 </div>
                 <div class="run-stats">
@@ -288,6 +299,7 @@ class HtmlReportGenerator:
                 </div>
             </summary>
             <div class="run-content">
+                {config_details_html}
                 <table class="scenarios-table">
                     <thead>
                         <tr>
@@ -331,6 +343,90 @@ class HtmlReportGenerator:
                 'title="MCP tool schemas changed from previous run">Schema Changed</span>'
             )
         return " ".join(badges)
+
+    def _build_hash_badges(
+        self, prompt_hash: str | None, schema_hash: str | None
+    ) -> str:
+        """Build HTML for prompt and schema hash badges.
+
+        Args:
+            prompt_hash: SHA256 hash of the system prompt (first 16 chars).
+            schema_hash: SHA256 hash of the MCP tool schemas (first 16 chars).
+
+        Returns:
+            HTML string with hash badges.
+        """
+        badges = []
+        if prompt_hash:
+            badges.append(
+                f'<span class="hash-badge" title="System prompt hash: {prompt_hash}">'
+                f'<span class="hash-label">Prompt:</span>{prompt_hash[:8]}</span>'
+            )
+        if schema_hash:
+            badges.append(
+                f'<span class="hash-badge" title="Schema hash: {schema_hash}">'
+                f'<span class="hash-label">Schema:</span>{schema_hash[:8]}</span>'
+            )
+        return " ".join(badges)
+
+    def _build_config_details_html(self, result: TestRunResult) -> str:
+        """Build HTML for collapsible configuration details section.
+
+        Args:
+            result: Test run result containing config data.
+
+        Returns:
+            HTML string with collapsible config details.
+        """
+        # Build system prompt section
+        if result.agent_system_prompt:
+            prompt_html = f'<pre>{_escape_html(result.agent_system_prompt)}</pre>'
+        else:
+            prompt_html = '<p class="no-data">No system prompt captured</p>'
+
+        # Build tool schemas section
+        if result.mcp_tool_schemas:
+            schema_items = []
+            for schema in result.mcp_tool_schemas:
+                name = _escape_html(schema.get("name", "Unknown"))
+                desc = schema.get("description", "")
+                desc_short = (
+                    _escape_html(desc[:MAX_DESCRIPTION_LENGTH] + "...")
+                    if len(desc) > MAX_DESCRIPTION_LENGTH
+                    else _escape_html(desc)
+                )
+                # Format input_schema as JSON
+                input_schema = schema.get("input_schema", {})
+                schema_json = json.dumps(input_schema, indent=2)
+
+                schema_items.append(
+                    f'<details class="tool-schema-item">'
+                    f"<summary>{name}"
+                    f'<span class="tool-description">{desc_short}</span></summary>'
+                    f"<pre>{_escape_html(schema_json)}</pre>"
+                    f"</details>"
+                )
+            schemas_html = "\n".join(schema_items)
+            tool_count = len(result.mcp_tool_schemas)
+        else:
+            schemas_html = '<p class="no-data">No MCP tool schemas captured</p>'
+            tool_count = 0
+
+        return f"""
+                <details class="config-details">
+                    <summary>Configuration Details ({tool_count} tools)</summary>
+                    <div class="config-details-content">
+                        <div class="config-section">
+                            <h5>System Prompt</h5>
+                            {prompt_html}
+                        </div>
+                        <div class="config-section">
+                            <h5>MCP Tool Schemas ({tool_count})</h5>
+                            {schemas_html}
+                        </div>
+                    </div>
+                </details>
+        """
 
     def _build_scenario_row(self, result: TestRunResult) -> str:
         """Build HTML for a single scenario row."""
