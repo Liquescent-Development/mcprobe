@@ -48,6 +48,27 @@ class ResultsConfig(BaseModel):
     dir: str = "test-results"
 
 
+class MCPServerConfig(BaseModel):
+    """Configuration for MCP server connection.
+
+    Used to extract tool schemas directly from the MCP server for tracking
+    changes that may affect agent performance.
+
+    Supports two connection methods:
+    - stdio: Command-based connection (e.g., "npx @example/weather-mcp")
+    - HTTP: URL-based connection (e.g., "http://localhost:8080/mcp")
+    """
+
+    # Stdio connection (command-based)
+    command: str | None = None
+
+    # HTTP connection (URL-based)
+    url: str | None = None
+
+    # Optional headers for HTTP connections (e.g., for authentication)
+    headers: dict[str, str] | None = None
+
+
 class CLIOverrides(BaseModel):
     """CLI argument overrides for configuration.
 
@@ -71,6 +92,7 @@ class FileConfig(BaseModel):
     synthetic_user: LLMConfig | None = None
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     results: ResultsConfig = Field(default_factory=ResultsConfig)
+    mcp_server: MCPServerConfig | None = None
 
 
 class ConfigLoader:

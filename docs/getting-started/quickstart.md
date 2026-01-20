@@ -138,12 +138,24 @@ llm:
 results:
   save: true
   dir: test-results
+
+# Optional: Enable prompt and schema tracking
+mcp_server:
+  command: "npx @modelcontextprotocol/server-weather"
+  # OR for HTTP-based MCP server:
+  # url: "http://localhost:8080/mcp"
+  # OR for HTTP with authentication:
+  # url: "http://localhost:8080/mcp"
+  # headers:
+  #   Authorization: "Bearer ${API_TOKEN:-dev}"
 ```
 
 Then run:
 ```bash
 mcprobe run greeting.yaml
 ```
+
+**Note:** The optional `mcp_server` section enables tracking of MCP tool schemas across test runs. When configured, HTML reports will display "Schema Changed" badges if schemas differ from previous runs, helping you correlate test behavior changes with schema modifications.
 
 You'll see output like:
 
@@ -326,12 +338,22 @@ orchestrator:
 results:
   save: true
   dir: test-results
+
+# Optional: Track MCP schema changes
+mcp_server:
+  command: "npx @modelcontextprotocol/server-weather"
+  # OR: url: "http://localhost:8080/mcp"
+  # OR with authentication:
+  # url: "http://localhost:8080/mcp"
+  # headers:
+  #   Authorization: "Bearer ${API_TOKEN:-dev}"
 ```
 
 See [Configuration Reference](../configuration/reference.md) for all options including:
 - Component-specific configs (separate settings for judge vs synthetic user)
 - Environment variable interpolation
 - Multiple provider configurations
+- MCP server schema tracking for change detection
 
 ### 2. Create a More Complex Scenario
 

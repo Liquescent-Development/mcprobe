@@ -205,6 +205,171 @@ details.test-run[open] > summary.run-header::before {
     font-size: 0.75rem;
 }
 
+/* Configuration change badges */
+.config-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+}
+
+.config-badge.prompt-changed {
+    background: rgba(255, 193, 7, 0.2);
+    color: #856404;
+    border: 1px solid rgba(255, 193, 7, 0.5);
+}
+
+.config-badge.schema-changed {
+    background: rgba(23, 162, 184, 0.2);
+    color: #0c5460;
+    border: 1px solid rgba(23, 162, 184, 0.5);
+}
+
+/* Hash badges (similar to model badge but muted) */
+.hash-badge {
+    background: rgba(108, 117, 125, 0.15);
+    color: var(--color-text-muted);
+    padding: 0.125rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-family: monospace;
+}
+
+.hash-badge .hash-label {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin-right: 0.25rem;
+}
+
+/* Configuration details section */
+.config-details {
+    border-top: 1px solid var(--color-border);
+    background: rgba(248, 249, 250, 0.5);
+}
+
+.config-details > summary {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.config-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.config-details > summary::before {
+    content: "▶";
+    font-size: 0.65rem;
+    transition: transform 0.2s;
+}
+
+.config-details[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.config-details > summary:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.config-details-content {
+    padding: 1rem;
+    border-top: 1px solid var(--color-border);
+}
+
+.config-section {
+    margin-bottom: 1rem;
+}
+
+.config-section:last-child {
+    margin-bottom: 0;
+}
+
+.config-section h5 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.config-section pre {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.config-section .no-data {
+    color: var(--color-text-muted);
+    font-style: italic;
+    font-size: 0.85rem;
+}
+
+.tool-schema-item {
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+.tool-schema-item:last-child {
+    margin-bottom: 0;
+}
+
+.tool-schema-item summary {
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    background: rgba(248, 249, 250, 0.5);
+    list-style: none;
+    display: flex;
+    align-items: center;
+}
+
+.tool-schema-item summary::-webkit-details-marker {
+    display: none;
+}
+
+.tool-schema-item summary::before {
+    content: "▶";
+    font-size: 0.6rem;
+    margin-right: 0.5rem;
+    transition: transform 0.2s;
+}
+
+.tool-schema-item[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.tool-schema-item .tool-description {
+    color: var(--color-text-muted);
+    font-weight: normal;
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
+}
+
+.tool-schema-item pre {
+    margin: 0;
+    border: none;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0;
+}
+
 .run-stats {
     display: flex;
     gap: 1rem;

@@ -4,7 +4,7 @@ Defines the structure for test run results to be stored and retrieved.
 """
 
 from datetime import datetime
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from pydantic import BaseModel, Field
 
@@ -36,6 +36,12 @@ class TestRunResult(BaseModel):
     git_commit: str | None = None
     git_branch: str | None = None
     ci_environment: dict[str, str] = Field(default_factory=dict)
+
+    # Agent configuration capture (for tracking changes that affect performance)
+    agent_system_prompt: str | None = None
+    agent_system_prompt_hash: str | None = None  # SHA256 (first 16 chars)
+    mcp_tool_schemas: list[dict[str, Any]] = Field(default_factory=list)
+    mcp_tool_schemas_hash: str | None = None  # SHA256 (first 16 chars)
 
 
 class IndexEntry(BaseModel):

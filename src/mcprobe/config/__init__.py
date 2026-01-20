@@ -5,6 +5,7 @@ from mcprobe.config.loader import (
     CLIOverrides,
     ConfigLoader,
     FileConfig,
+    MCPServerConfig,
     ResultsConfig,
     load_config,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "CLIOverrides",
     "ConfigLoader",
     "FileConfig",
+    "MCPServerConfig",
     "ResultsConfig",
     "load_config",
 ]

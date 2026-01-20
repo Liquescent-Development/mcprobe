@@ -21,6 +21,9 @@ Realistic user simulation that can:
 ### Automated Evaluation
 LLM-based judges evaluate conversations against correctness criteria, tool usage expectations, and efficiency targets, providing detailed feedback and suggestions.
 
+### Prompt & Schema Tracking
+Automatically track agent system prompts and MCP tool schemas across test runs with SHA256-based change detection. HTML reports display visual badges when prompts or schemas change, helping correlate test performance with configuration modifications.
+
 ### Trend Analysis
 Track test performance over time to identify regressions, improvements, and patterns in your MCP server's behavior.
 

@@ -404,6 +404,152 @@ orchestrator_config = OrchestratorConfig(
 )
 ```
 
+## MCPServerConfig
+
+Configuration for connecting to an MCP (Model Context Protocol) server. This allows MCProbe to extract tool schemas from your MCP server for tracking and analysis purposes.
+
+**Import Path**: `mcprobe.models.config.MCPServerConfig`
+
+### Fields
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `command` | `str \| None` | No | `None` | Command to start an stdio-based MCP server (e.g., "npx @example/weather-mcp") |
+| `url` | `str \| None` | No | `None` | URL for HTTP-based MCP server (e.g., "http://localhost:8080/mcp") |
+| `headers` | `dict[str, str] \| None` | No | `None` | Optional HTTP headers for authentication or custom headers (only applies to HTTP connections) |
+
+### MCP Server Connection Types
+
+#### Stdio-based MCP Server
+
+For MCP servers that communicate via standard input/output:
+
+```yaml
+mcp_server:
+  command: "npx @modelcontextprotocol/server-weather"
+```
+
+**Examples:**
+```yaml
+# NPM-based server
+mcp_server:
+  command: "npx @example/weather-mcp"
+
+# Python server
+mcp_server:
+  command: "python mcp_servers/my_server.py"
+
+# Custom executable
+mcp_server:
+  command: "./bin/mcp-server"
+```
+
+#### HTTP-based MCP Server
+
+For MCP servers accessible via HTTP:
+
+```yaml
+mcp_server:
+  url: "http://localhost:8080/mcp"
+```
+
+**Examples:**
+```yaml
+# Local MCP server
+mcp_server:
+  url: "http://localhost:8080/mcp"
+
+# Remote MCP server
+mcp_server:
+  url: "https://api.example.com/mcp"
+
+# MCP server in Docker
+mcp_server:
+  url: "http://mcp-service:8080/mcp"
+
+# MCP server with authentication
+mcp_server:
+  url: "http://localhost:8080/mcp"
+  headers:
+    Authorization: "Bearer ${API_TOKEN:-dev}"
+    X-Custom-Header: "some-value"
+
+# MCP server with static API key
+mcp_server:
+  url: "https://api.example.com/mcp"
+  headers:
+    X-API-Key: "${MCP_API_KEY}"
+
+# MCP server with multiple custom headers
+mcp_server:
+  url: "http://internal-mcp:8080/mcp"
+  headers:
+    Authorization: "Bearer ${SERVICE_TOKEN:-default-token}"
+    X-Environment: "production"
+    X-Client-ID: "${CLIENT_ID:-mcprobe}"
+```
+
+**Headers Features:**
+- **Authentication**: Supports Bearer tokens, API keys, and custom authentication schemes
+- **Environment Variables**: Full support for environment variable interpolation (`${VAR}` or `${VAR:-default}`)
+- **Custom Headers**: Add any custom HTTP headers required by your MCP server
+- **Optional**: Only needed for servers requiring authentication or custom headers
+
+### Use Cases
+
+The `mcp_server` configuration enables:
+
+1. **Prompt and Schema Tracking**: Automatically extract and track MCP tool schemas across test runs
+2. **Change Detection**: Identify when tool schemas change between runs
+3. **HTML Report Badges**: Display "Schema Changed" badges in reports when tools are modified
+4. **Correlation Analysis**: Correlate test performance changes with schema modifications
+
+When configured, MCProbe will:
+- Connect to the MCP server at test runtime
+- Extract all available tool schemas
+- Store schemas with test results (hashed for change detection)
+- Display change badges in HTML reports when schemas differ from previous runs
+
+### Examples
+
+**With stdio MCP server:**
+```python
+from mcprobe.models.config import MCPServerConfig, MCProbeConfig, AgentConfig, LLMConfig
+
+config = MCProbeConfig(
+    agent=AgentConfig(type="simple"),
+    synthetic_user=LLMConfig(provider="ollama", model="llama3.2"),
+    judge=LLMConfig(provider="ollama", model="llama3.2"),
+    mcp_server=MCPServerConfig(command="npx @example/weather-mcp")
+)
+```
+
+**With HTTP MCP server:**
+```python
+config = MCProbeConfig(
+    agent=AgentConfig(type="simple"),
+    synthetic_user=LLMConfig(provider="ollama", model="llama3.2"),
+    judge=LLMConfig(provider="ollama", model="llama3.2"),
+    mcp_server=MCPServerConfig(url="http://localhost:8080/mcp")
+)
+```
+
+**In YAML configuration file:**
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ollama
+  model: llama3.2
+
+# For stdio-based MCP server
+mcp_server:
+  command: "npx @example/weather-mcp"
+
+# OR for HTTP-based MCP server
+mcp_server:
+  url: "http://localhost:8080/mcp"
+```
+
 ## MCProbeConfig
 
 Global configuration combining all MCProbe components.
@@ -418,6 +564,7 @@ Global configuration combining all MCProbe components.
 | `synthetic_user` | `LLMConfig` | Yes | - | Configuration for the synthetic user LLM |
 | `judge` | `LLMConfig` | Yes | - | Configuration for the judge LLM |
 | `orchestrator` | `OrchestratorConfig` | No | `OrchestratorConfig()` | Orchestrator configuration |
+| `mcp_server` | `MCPServerConfig \| None` | No | `None` | Optional MCP server connection for schema tracking |
 
 ### Example: Simple Agent
 
@@ -603,7 +750,61 @@ orchestrator:
 results:
   save: ${SAVE_RESULTS:-true}
   dir: ${RESULTS_DIR:-test-results}
+
+# Optional: Track MCP schema changes
+mcp_server:
+  url: ${MCP_URL:-http://localhost:8080/mcp}
 ```
+
+### With MCP Server Schema Tracking
+
+Track changes to your MCP server's tool schemas over time:
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+
+# Enable schema tracking by connecting to MCP server
+mcp_server:
+  command: "npx @modelcontextprotocol/server-weather"
+
+results:
+  save: true
+  dir: test-results
+```
+
+### With Authenticated HTTP MCP Server
+
+For MCP servers requiring authentication:
+
+```yaml
+# mcprobe.yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+
+# Connect to authenticated MCP server
+mcp_server:
+  url: "https://api.example.com/mcp"
+  headers:
+    Authorization: "Bearer ${API_TOKEN:-dev-token}"
+    X-API-Version: "v1"
+
+results:
+  save: true
+  dir: test-results
+```
+
+When schema tracking is enabled:
+- Tool schemas are extracted at test runtime
+- Schemas are stored with each test result (with SHA256 hash)
+- HTML reports show "Schema Changed" badges when schemas differ from previous runs
+- Helps correlate test performance changes with schema modifications
+- For HTTP servers, authentication headers are used to connect securely
 
 ## Using Configuration Files
 

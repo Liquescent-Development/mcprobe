@@ -58,3 +58,15 @@ class AgentUnderTest(ABC):
             Agent name for display purposes.
         """
         return self.__class__.__name__
+
+    def get_system_prompt(self) -> str | None:
+        """Return the agent's system prompt if available.
+
+        This is used to track prompt changes that may affect test results.
+        Implementations should override this if they have access to the
+        agent's system prompt.
+
+        Returns:
+            The system prompt string, or None if not available.
+        """
+        return None
