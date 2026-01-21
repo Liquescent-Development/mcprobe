@@ -11,7 +11,8 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from mcprobe.analysis.trends import TrendAnalyzer
-from mcprobe.persistence import ResultLoader, TestRunResult
+from mcprobe.config import ConfigLoader, FileConfig
+from mcprobe.persistence import ResultLoader, ResultStorage, TestRunResult
 
 # Configure logging (CRITICAL: never use print() in stdio server)
 logger = logging.getLogger(__name__)
@@ -145,18 +146,26 @@ def _format_suggestions(result: TestRunResult) -> str:
 def create_server(  # noqa: PLR0915 - Server factory with inline tool definitions
     results_dir: Path,
     scenarios_dir: Path,
+    config_file: Path | None = None,
 ) -> FastMCP:
     """Create and configure the MCP server.
 
     Args:
         results_dir: Directory containing test results.
         scenarios_dir: Directory containing test scenarios.
+        config_file: Optional path to mcprobe.yaml configuration file.
 
     Returns:
         Configured FastMCP server instance.
     """
     mcp = FastMCP("mcprobe")
     loader = ResultLoader(results_dir)
+    storage = ResultStorage(results_dir)
+
+    # Load configuration file if provided
+    file_config: FileConfig | None = None
+    if config_file:
+        file_config = ConfigLoader.load_config(config_file)
 
     # =========================================================================
     # Discovery Tools
@@ -368,15 +377,129 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
 
         return f"{judgment}\n\n---\n\n{suggestions}"
 
+    # =========================================================================
+    # Control Tools
+    # =========================================================================
+
+    @mcp.tool()
+    async def run_scenario(
+        scenario_path: str,
+        save_results: bool = True,
+    ) -> str:
+        """Run a test scenario and return the results.
+
+        Executes a test scenario using the configuration from the mcprobe.yaml
+        config file. Requires the server to be started with --config option.
+
+        Args:
+            scenario_path: Path to the scenario YAML file (relative to scenarios dir)
+            save_results: Whether to save results to the results directory (default: True)
+
+        Returns:
+            Formatted judgment and suggestions from the test run.
+        """
+        # Lazy imports to avoid circular dependencies
+        from mcprobe.agents.simple import SimpleLLMAgent  # noqa: PLC0415
+        from mcprobe.judge.judge import ConversationJudge  # noqa: PLC0415
+        from mcprobe.orchestrator.orchestrator import (  # noqa: PLC0415
+            ConversationOrchestrator,
+        )
+        from mcprobe.parser.scenario import ScenarioParser  # noqa: PLC0415
+        from mcprobe.providers.factory import create_provider  # noqa: PLC0415
+        from mcprobe.synthetic_user.user import SyntheticUserLLM  # noqa: PLC0415
+
+        if not file_config:
+            return (
+                "Error: Cannot run scenarios without configuration. "
+                "Start the server with --config option pointing to mcprobe.yaml"
+            )
+
+        # Resolve scenario path
+        full_path = scenarios_dir / scenario_path
+        if not full_path.exists():
+            # Try as absolute path
+            full_path = Path(scenario_path)
+            if not full_path.exists():
+                return f"Error: Scenario file not found: {scenario_path}"
+
+        # Parse the scenario
+        parser = ScenarioParser()
+        try:
+            scenario = parser.parse_file(full_path)
+        except Exception as e:
+            return f"Error parsing scenario: {e}"
+
+        # Resolve LLM config
+        llm_config = ConfigLoader.resolve_llm_config(file_config, "synthetic_user")
+
+        # Create provider and components
+        try:
+            provider = create_provider(llm_config)
+            agent = SimpleLLMAgent(provider)
+            synthetic_user = SyntheticUserLLM(provider, scenario.synthetic_user)
+            judge = ConversationJudge(provider)
+            orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
+        except Exception as e:
+            return f"Error creating test components: {e}"
+
+        # Run the scenario
+        try:
+            conversation_result, judgment_result = await orchestrator.run(scenario)
+        except Exception as e:
+            logger.exception("Error running scenario")
+            return f"Error running scenario: {e}"
+
+        # Build result object
+        import platform  # noqa: PLC0415
+        import uuid  # noqa: PLC0415
+        from datetime import datetime  # noqa: PLC0415
+
+        import mcprobe  # noqa: PLC0415
+
+        run_result = TestRunResult(
+            run_id=str(uuid.uuid4()),
+            timestamp=datetime.now(),
+            scenario_name=scenario.name,
+            scenario_file=str(full_path),
+            scenario_tags=scenario.tags,
+            conversation_result=conversation_result,
+            judgment_result=judgment_result,
+            agent_type="simple",
+            judge_model=llm_config.model,
+            synthetic_user_model=llm_config.model,
+            agent_model=llm_config.model,
+            duration_seconds=conversation_result.duration_seconds,
+            mcprobe_version=mcprobe.__version__,
+            python_version=platform.python_version(),
+        )
+
+        # Save results if requested
+        if save_results:
+            try:
+                storage.save(run_result)
+            except Exception as e:
+                logger.warning("Failed to save results: %s", e)
+
+        # Format and return results
+        judgment = _format_judgment(run_result)
+        suggestions = _format_suggestions(run_result)
+
+        return f"{judgment}\n\n---\n\n{suggestions}"
+
     return mcp
 
 
-def run_server(results_dir: Path, scenarios_dir: Path) -> None:
+def run_server(
+    results_dir: Path,
+    scenarios_dir: Path,
+    config_file: Path | None = None,
+) -> None:
     """Run the MCP server with stdio transport.
 
     Args:
         results_dir: Directory containing test results.
         scenarios_dir: Directory containing test scenarios.
+        config_file: Optional path to mcprobe.yaml configuration file.
     """
-    mcp = create_server(results_dir, scenarios_dir)
+    mcp = create_server(results_dir, scenarios_dir, config_file)
     mcp.run(transport="stdio")

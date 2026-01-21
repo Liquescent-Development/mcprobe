@@ -1077,6 +1077,14 @@ def serve(
             help="Scenarios directory (default: current directory).",
         ),
     ] = None,
+    config_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Path to mcprobe.yaml config file (required for run_scenario tool).",
+        ),
+    ] = None,
 ) -> None:
     """Start MCP server for Claude Code integration.
 
@@ -1084,12 +1092,14 @@ def serve(
     Configure in Claude Code's MCP settings to query test results,
     analyze trends, and run tests interactively.
 
+    To enable the run_scenario tool, provide a config file with LLM settings.
+
     Example configuration in .claude/mcp.json:
         {
           "mcpServers": {
             "mcprobe": {
               "command": "mcprobe",
-              "args": ["serve", "--results-dir", "./test-results"]
+              "args": ["serve", "-r", "./test-results", "-c", "./mcprobe.yaml"]
             }
           }
         }
@@ -1099,7 +1109,7 @@ def serve(
     resolved_results = results_dir or Path(DEFAULT_RESULTS_DIR)
     resolved_scenarios = scenarios_dir or Path()
 
-    run_server(resolved_results, resolved_scenarios)
+    run_server(resolved_results, resolved_scenarios, config_file)
 
 
 def main() -> None:

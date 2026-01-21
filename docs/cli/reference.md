@@ -27,6 +27,7 @@ MCProbe is built on [Typer](https://typer.tiangolo.com/) and supports standard h
 | [flaky](#mcprobe-flaky) | Detect flaky (inconsistent) tests |
 | [stability-check](#mcprobe-stability-check) | Check stability of a scenario |
 | [providers](#mcprobe-providers) | List available LLM providers |
+| [serve](#mcprobe-serve) | Start MCP server for AI assistant integration |
 
 ---
 
@@ -646,6 +647,122 @@ Available Providers
 
 ---
 
+## mcprobe serve
+
+Start an MCP server for AI assistant integration.
+
+### Synopsis
+
+```bash
+mcprobe serve [OPTIONS]
+```
+
+### Description
+
+Starts a Model Context Protocol (MCP) server that exposes MCProbe test results and control capabilities to AI assistants like Claude Code. The server runs on stdio transport, making it easy to configure as an MCP server in tools that support the protocol.
+
+The server provides tools for:
+- **Discovery**: List available scenarios and test results
+- **Inspection**: View conversations, judgments, and suggestions
+- **Analysis**: Get trend analysis for scenarios
+- **Control**: Run test scenarios (requires config file)
+
+### Options
+
+| Option | Short | Type | Default | Description |
+|--------|-------|------|---------|-------------|
+| `--results-dir` | `-r` | Path | `test-results` | Directory containing test results |
+| `--scenarios-dir` | `-s` | Path | `.` | Directory containing scenario files |
+| `--config` | `-c` | Path | None | Path to mcprobe.yaml config file (required for run_scenario tool) |
+
+### MCP Tools
+
+The server exposes the following tools to AI assistants:
+
+#### Discovery Tools
+
+| Tool | Description |
+|------|-------------|
+| `list_scenarios` | List available test scenario files |
+| `list_results` | List recent test run results with optional filtering |
+
+#### Inspection Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_result` | Get complete test run result by ID |
+| `get_conversation` | Get formatted conversation transcript |
+| `get_judgment` | Get judge evaluation with criteria results |
+| `get_suggestions` | Get MCP improvement suggestions |
+
+#### Analysis Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_trends` | Get trend analysis for a scenario |
+| `get_latest` | Get the most recent test result |
+
+#### Control Tools
+
+| Tool | Description |
+|------|-------------|
+| `run_scenario` | Run a test scenario (requires --config) |
+
+### Examples
+
+**Start server for viewing results only:**
+```bash
+mcprobe serve --results-dir ./test-results
+```
+
+**Start server with scenario execution capability:**
+```bash
+mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
+```
+
+### Claude Code Integration
+
+To use MCProbe with Claude Code, add the following to your `.claude/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "mcprobe": {
+      "command": "mcprobe",
+      "args": ["serve", "-r", "./test-results", "-s", "./scenarios"]
+    }
+  }
+}
+```
+
+To enable test execution, include the config file:
+
+```json
+{
+  "mcpServers": {
+    "mcprobe": {
+      "command": "mcprobe",
+      "args": ["serve", "-r", "./test-results", "-s", "./scenarios", "-c", "./mcprobe.yaml"]
+    }
+  }
+}
+```
+
+After configuring, restart Claude Code to load the MCP server. You can then ask Claude to:
+- "List the recent test results"
+- "Show me the conversation from the last failed test"
+- "What suggestions does the judge have for improving the MCP server?"
+- "Run the weather-query scenario and show me the results"
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Server stopped normally |
+| 1 | Configuration error or startup failure |
+
+---
+
 ## Environment Variables
 
 MCProbe supports environment variables in two ways:
@@ -745,4 +862,5 @@ See [Configuration Reference](../configuration/reference.md) for complete docume
 - [Running Tests](run.md) - Detailed guide for the `run` command
 - [Generating Scenarios](generate.md) - Scenario generation guide
 - [Analysis Commands](analysis.md) - Trends, flaky detection, and reporting
+- [MCP Server](serve.md) - AI assistant integration guide
 - [Scenario Format](../scenarios/format.md) - YAML scenario specification

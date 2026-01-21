@@ -366,6 +366,52 @@ class TestGetLatest:
         assert "PASSED" in result
 
 
+class TestRunScenario:
+    """Tests for run_scenario tool."""
+
+    @pytest.mark.asyncio
+    async def test_run_scenario_requires_config(
+        self,
+        temp_results_dir: Path,
+        temp_scenarios_dir: Path,
+    ) -> None:
+        """Test that run_scenario returns error when no config is provided."""
+        server = create_server(temp_results_dir, temp_scenarios_dir)
+        tools = server._tool_manager._tools
+        run_scenario_tool = tools["run_scenario"]
+
+        result = await run_scenario_tool.fn(scenario_path="weather.yaml")
+
+        assert "error" in result.lower()
+        assert "configuration" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_run_scenario_handles_missing_file(
+        self,
+        temp_results_dir: Path,
+        temp_scenarios_dir: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Test that run_scenario handles missing scenario file."""
+        # Create a minimal config file
+        config_file = tmp_path / "mcprobe.yaml"
+        config_file.write_text("""
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+""")
+
+        server = create_server(temp_results_dir, temp_scenarios_dir, config_file)
+        tools = server._tool_manager._tools
+        run_scenario_tool = tools["run_scenario"]
+
+        result = await run_scenario_tool.fn(scenario_path="nonexistent.yaml")
+
+        assert "error" in result.lower()
+        assert "not found" in result.lower()
+
+
 class TestServerCreation:
     """Tests for server creation."""
 
@@ -399,6 +445,7 @@ class TestServerCreation:
             "get_suggestions",
             "get_trends",
             "get_latest",
+            "run_scenario",
         ]
 
         for tool_name in expected_tools:

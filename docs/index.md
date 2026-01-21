@@ -33,6 +33,9 @@ Automatically detect scenarios with inconsistent results, helping you improve te
 ### CI/CD Integration
 Seamlessly integrate with pytest and GitHub Actions for continuous testing of your MCP servers.
 
+### AI Assistant Integration
+Built-in MCP server (`mcprobe serve`) exposes test results and control to AI assistants like Claude Code, enabling interactive test-driven development of MCP servers.
+
 ## Quick Install
 
 ```bash
@@ -108,10 +111,11 @@ Reasoning: The agent provided a warm greeting and clearly offered assistance...
 - Tool Usage Testing - Validating MCP tool interactions
 
 ### CLI Reference
-- [CLI Reference](cli/reference.md) - Complete command reference for all 8 commands
+- [CLI Reference](cli/reference.md) - Complete command reference for all 9 commands
 - [Running Tests](cli/run.md) - Execute scenarios against your agents
 - [Generating Scenarios](cli/generate.md) - Auto-create tests from MCP schemas
 - [Analysis & Reporting](cli/analysis.md) - Reports, trends, and flaky test detection
+- [MCP Server](cli/serve.md) - AI assistant integration with Claude Code
 
 ### Analysis
 - [Trend Analysis](analysis/trends.md) - Track performance trends and detect regressions
