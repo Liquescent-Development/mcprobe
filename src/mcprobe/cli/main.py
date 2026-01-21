@@ -1059,6 +1059,49 @@ def stability_check(
                 console.print(f"  - {reason}")
 
 
+@app.command()
+def serve(
+    results_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--results-dir",
+            "-r",
+            help="Results directory (default: ./test-results).",
+        ),
+    ] = None,
+    scenarios_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--scenarios-dir",
+            "-s",
+            help="Scenarios directory (default: current directory).",
+        ),
+    ] = None,
+) -> None:
+    """Start MCP server for Claude Code integration.
+
+    Exposes MCProbe results and control via Model Context Protocol.
+    Configure in Claude Code's MCP settings to query test results,
+    analyze trends, and run tests interactively.
+
+    Example configuration in .claude/mcp.json:
+        {
+          "mcpServers": {
+            "mcprobe": {
+              "command": "mcprobe",
+              "args": ["serve", "--results-dir", "./test-results"]
+            }
+          }
+        }
+    """
+    from mcprobe.server import run_server  # noqa: PLC0415
+
+    resolved_results = results_dir or Path(DEFAULT_RESULTS_DIR)
+    resolved_scenarios = scenarios_dir or Path()
+
+    run_server(resolved_results, resolved_scenarios)
+
+
 def main() -> None:
     """Entry point for the CLI."""
     app()
