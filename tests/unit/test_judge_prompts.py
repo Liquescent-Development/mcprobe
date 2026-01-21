@@ -106,7 +106,7 @@ class TestFormatToolCalls:
             total_tool_calls=[],
             total_tokens=0,
             duration_seconds=1.0,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         formatted = format_tool_calls(result)
@@ -135,7 +135,7 @@ class TestFormatToolCalls:
             total_tool_calls=tool_calls,
             total_tokens=100,
             duration_seconds=1.0,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         formatted = format_tool_calls(result)
@@ -217,7 +217,7 @@ class TestBuildJudgePrompt:
             total_tool_calls=[],
             total_tokens=100,
             duration_seconds=2.0,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         prompt = build_judge_prompt(scenario, conversation_result)
@@ -251,7 +251,7 @@ class TestBuildJudgePrompt:
             total_tool_calls=[],
             total_tokens=50,
             duration_seconds=1.0,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         prompt = build_judge_prompt(scenario, conversation_result)
@@ -284,7 +284,7 @@ class TestBuildJudgePrompt:
             total_tool_calls=[],
             total_tokens=50,
             duration_seconds=1.0,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         prompt = build_judge_prompt(scenario, conversation_result)

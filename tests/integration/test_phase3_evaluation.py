@@ -125,7 +125,7 @@ def sample_conversation_result() -> ConversationResult:
         ],
         total_tokens=450,
         duration_seconds=3.5,
-        termination_reason=TerminationReason.USER_SATISFIED,
+        termination_reason=TerminationReason.CRITERIA_MET,
     )
 
 

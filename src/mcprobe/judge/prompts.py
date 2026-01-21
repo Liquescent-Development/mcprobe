@@ -10,6 +10,34 @@ from mcprobe.models.scenario import TestScenario, ToolCallCriterion
 TRANSCRIPT_RESULT_TRUNCATE_LEN = 200
 TOOL_CALL_RESULT_TRUNCATE_LEN = 100
 
+CRITERIA_CHECK_PROMPT = """\
+You are checking whether an AI agent has satisfied the success criteria for a task.
+
+## User's Goal
+{user_persona}
+
+## User's Initial Query
+{initial_query}
+
+## Correctness Criteria (ALL must be satisfied)
+{correctness_criteria}
+
+## Conversation So Far
+{conversation_transcript}
+
+## Your Task
+Evaluate whether the agent's responses so far have satisfied ALL the correctness criteria.
+Be strict: a criterion is only met if the agent has clearly and completely addressed it.
+Do not mark criteria as met if the information is partial, vague, or requires inference.
+
+Respond in JSON format:
+{{
+    "all_criteria_met": true/false,
+    "correctness_results": {{"criterion": true/false, ...}},
+    "brief_reasoning": "One sentence explaining your assessment"
+}}
+"""
+
 JUDGE_EVALUATION_PROMPT = """\
 You are evaluating an AI agent's performance on a user assistance task.
 
@@ -187,6 +215,30 @@ def format_tool_call_criteria(criteria: list[ToolCallCriterion]) -> str:
         for assertion in criterion.assertions:
             lines.append(f"  - {assertion}")
     return "\n".join(lines)
+
+
+def build_criteria_check_prompt(
+    scenario: TestScenario,
+    turns: list[ConversationTurn],
+) -> str:
+    """Build the prompt for checking criteria mid-conversation.
+
+    Args:
+        scenario: Test scenario with evaluation criteria.
+        turns: Conversation turns so far.
+
+    Returns:
+        Formatted criteria check prompt string.
+    """
+    evaluation = scenario.evaluation
+    user_config = scenario.synthetic_user
+
+    return CRITERIA_CHECK_PROMPT.format(
+        user_persona=user_config.persona,
+        initial_query=user_config.initial_query,
+        correctness_criteria=format_criteria_list(evaluation.correctness_criteria),
+        conversation_transcript=format_conversation_transcript(turns),
+    )
 
 
 def build_judge_prompt(

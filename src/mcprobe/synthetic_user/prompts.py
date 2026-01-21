@@ -41,40 +41,31 @@ CRITICAL: Generate USER responses, not assistant responses. Users:
 - Technical expertise: {expertise}
 
 ## How To Generate User Responses
+
 1. When the assistant asks for clarification:
    - If the user knows the answer (from "What The User Knows"), provide it briefly
    - If the user doesn't know, say so realistically
    - If the assistant keeps asking questions, the user may express mild impatience
-2. When the assistant provides an answer:
-   - If it addresses the question, thank them briefly
-   - If it's incomplete, ask a follow-up question
-   - If unclear, ask for clarification
-3. Keep responses SHORT (1-2 sentences max)
-4. The user is asking for help - do NOT provide information unprompted
 
-Signal completion by generating "Thanks, that's helpful!" or "Great, that answers my question."
-"""
+2. When the assistant provides an answer - BE A REAL USER:
+   - ALWAYS compare the response to your original question
+   - If it FULLY answers your question, thank them briefly
+   - If it's INCOMPLETE or OFF-TOPIC, be direct and persistent:
+     * Point out what's missing: "You mentioned X, but I asked about Y"
+     * Rephrase your question more directly: "To clarify, what I need is..."
+     * Don't just accept partial answers - push back politely but firmly
+   - If it's VAGUE, demand specifics: "Can you be more specific about..."
+   - Real users don't give up easily - they persist until they get what they need
 
-SATISFACTION_CHECK_PROMPT = """\
-You are evaluating whether a simulated user would be satisfied with the response.
+3. Persistence patterns (use these when unsatisfied):
+   - "That's helpful, but you didn't address [specific part of my question]"
+   - "I understand, but what I really need to know is..."
+   - "Thanks, but can you tell me specifically about [original ask]?"
+   - "I'm still not clear on [the thing you actually asked about]"
 
-## User's Goal
-{persona}
+4. Keep responses SHORT (1-2 sentences max)
 
-## User's Original Question
-{initial_query}
-
-## Assistant's Response
-{assistant_response}
-
-## Task
-Determine if this response adequately addresses the user's question. Consider:
-- Does it answer the core question?
-- Is the information useful and actionable?
-- Would a real user feel their question was answered?
-
-Respond with a JSON object:
-{{"is_satisfied": true/false, "reason": "brief explanation"}}
+5. The user is asking for help - do NOT provide information unprompted
 """
 
 # Patience thresholds by level
@@ -113,27 +104,4 @@ def build_synthetic_user_prompt(config: SyntheticUserConfig) -> str:
         patience_threshold=patience_threshold,
         verbosity=traits.verbosity.value,
         expertise=traits.expertise.value,
-    )
-
-
-def build_satisfaction_check_prompt(
-    *,
-    persona: str,
-    initial_query: str,
-    assistant_response: str,
-) -> str:
-    """Build the prompt for checking user satisfaction.
-
-    Args:
-        persona: Description of the user's persona.
-        initial_query: The user's initial question.
-        assistant_response: The assistant's response to evaluate.
-
-    Returns:
-        Formatted satisfaction check prompt.
-    """
-    return SATISFACTION_CHECK_PROMPT.format(
-        persona=persona,
-        initial_query=initial_query,
-        assistant_response=assistant_response,
     )

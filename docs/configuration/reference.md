@@ -66,6 +66,8 @@ llm:
   base_url: ${OLLAMA_BASE_URL:-http://localhost:11434}
   temperature: 0.0
   max_tokens: 4096
+  context_size: 65536   # Context window (Ollama defaults to only 2048)
+  reasoning: medium     # Thinking effort: low, medium, or high
 
 # Component-specific overrides (optional)
 judge:
@@ -268,6 +270,8 @@ Configuration for an LLM provider used by the agent, synthetic user, or judge.
 | `max_tokens` | `int` | No | `4096` | Maximum tokens in response |
 | `api_key` | `SecretStr \| None` | No | `None` | API key for authentication (required for OpenAI) |
 | `base_url` | `str \| None` | No | `None` | Base URL for API endpoint (optional, provider-specific) |
+| `context_size` | `int \| None` | No | `None` | Context window size in tokens (mainly for Ollama, which defaults to only 2048) |
+| `reasoning` | `"low" \| "medium" \| "high" \| None` | No | `None` | Reasoning/thinking effort level for models that support it |
 
 ### Validation Rules
 
@@ -276,6 +280,7 @@ Configuration for an LLM provider used by the agent, synthetic user, or judge.
 - `temperature`: Must be between 0.0 and 2.0 (inclusive)
 - `max_tokens`: Must be at least 1
 - `api_key`: Stored as SecretStr for security (won't be logged or printed)
+- `context_size`: Must be at least 1024 if specified
 
 ### Supported Providers
 
@@ -288,9 +293,19 @@ Local LLM provider using Ollama for model inference.
 - `model`: Any Ollama model (e.g., `"llama3.2"`, `"llama3.1:8b"`, `"qwen2.5:7b"`)
 - `base_url`: Ollama API endpoint (default: `http://localhost:11434`)
 - `api_key`: Not required
+- `context_size`: Context window size (default: 65536). **Important:** Ollama defaults to only 2048 tokens, which is often too small. Set this to match your model's capability.
+- `reasoning`: Reasoning/thinking effort level. Maps to Ollama's `think` parameter:
+  - `"low"`: 1024 token thinking budget
+  - `"medium"`: 4096 token thinking budget
+  - `"high"`: 16384 token thinking budget
 
 **Environment Variables:**
 - `OLLAMA_BASE_URL`: Override default base URL
+
+**Context Size Recommendations:**
+- Minimum recommended: 65536 (64k)
+- For models supporting 128k context: 131072
+- Check your model's maximum context with `ollama show <model>`
 
 #### OpenAI
 
@@ -328,6 +343,17 @@ ollama_config = LLMConfig(
     temperature=0.0,
     max_tokens=4096,
     base_url="http://localhost:11434"
+)
+
+# Ollama with large context and reasoning
+ollama_thinking_config = LLMConfig(
+    provider="ollama",
+    model="qwen2.5:32b",
+    temperature=0.0,
+    max_tokens=4096,
+    base_url="http://localhost:11434",
+    context_size=131072,  # 128k context window
+    reasoning="high"       # Enable extended thinking
 )
 
 # OpenAI configuration
@@ -661,10 +687,35 @@ llm:
   model: llama3.2
   base_url: http://localhost:11434
   temperature: 0.0
+  context_size: 65536   # Ollama defaults to 2048, which is too small
+  reasoning: medium     # Enable moderate thinking budget
 
 orchestrator:
   max_turns: 15
   turn_timeout_seconds: 45.0
+
+results:
+  save: true
+  dir: test-results
+```
+
+### High-Performance Ollama Setup
+
+For models with large context windows and reasoning capabilities:
+
+```yaml
+# mcprobe.yaml - Optimized for 24GB+ VRAM GPUs
+llm:
+  provider: ollama
+  model: qwen2.5:32b
+  base_url: http://localhost:11434
+  temperature: 0.0
+  context_size: 131072  # 128k context window
+  reasoning: high       # Maximum thinking budget (16k tokens)
+
+orchestrator:
+  max_turns: 20
+  turn_timeout_seconds: 120.0  # Longer timeout for reasoning
 
 results:
   save: true

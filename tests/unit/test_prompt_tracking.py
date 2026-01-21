@@ -136,7 +136,7 @@ class TestTestRunResultModel:
                 total_tool_calls=[],
                 total_tokens=10,
                 duration_seconds=1.0,
-                termination_reason=TerminationReason.USER_SATISFIED,
+                termination_reason=TerminationReason.CRITERIA_MET,
             ),
             judgment_result=JudgmentResult(
                 passed=True,
@@ -209,7 +209,7 @@ class TestTestRunResultModel:
                 total_tool_calls=[],
                 total_tokens=5,
                 duration_seconds=0.5,
-                termination_reason=TerminationReason.USER_SATISFIED,
+                termination_reason=TerminationReason.CRITERIA_MET,
             ),
             judgment_result=JudgmentResult(
                 passed=True,
@@ -503,7 +503,7 @@ class TestHtmlGeneratorConfigDetails:
                 total_tool_calls=[],
                 total_tokens=10,
                 duration_seconds=1.0,
-                termination_reason=TerminationReason.USER_SATISFIED,
+                termination_reason=TerminationReason.CRITERIA_MET,
             ),
             judgment_result=JudgmentResult(
                 passed=True,
@@ -574,7 +574,7 @@ class TestHtmlGeneratorConfigDetails:
                 total_tool_calls=[],
                 total_tokens=10,
                 duration_seconds=1.0,
-                termination_reason=TerminationReason.USER_SATISFIED,
+                termination_reason=TerminationReason.CRITERIA_MET,
             ),
             judgment_result=JudgmentResult(
                 passed=True,
@@ -652,7 +652,7 @@ class TestHtmlGeneratorConfigDetails:
                 total_tool_calls=[],
                 total_tokens=10,
                 duration_seconds=1.0,
-                termination_reason=TerminationReason.USER_SATISFIED,
+                termination_reason=TerminationReason.CRITERIA_MET,
             ),
             judgment_result=JudgmentResult(
                 passed=True,

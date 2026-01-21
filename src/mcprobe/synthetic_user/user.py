@@ -3,23 +3,11 @@
 Simulates a realistic user interacting with an AI assistant.
 """
 
-from pydantic import BaseModel
-
 from mcprobe.exceptions import OrchestrationError
 from mcprobe.models.conversation import UserResponse
 from mcprobe.models.scenario import SyntheticUserConfig
 from mcprobe.providers.base import LLMProvider, Message
-from mcprobe.synthetic_user.prompts import (
-    build_satisfaction_check_prompt,
-    build_synthetic_user_prompt,
-)
-
-
-class SatisfactionResult(BaseModel):
-    """Result of checking if the user is satisfied."""
-
-    is_satisfied: bool
-    reason: str
+from mcprobe.synthetic_user.prompts import build_synthetic_user_prompt
 
 
 class SyntheticUserLLM:
@@ -57,20 +45,17 @@ class SyntheticUserLLM:
         """
         return self._config.initial_query
 
-    async def respond(
-        self,
-        assistant_message: str,
-        *,
-        is_final_answer: bool = False,
-    ) -> UserResponse:
+    async def respond(self, assistant_message: str) -> UserResponse:
         """Generate a response to the assistant's message.
+
+        The synthetic user generates natural follow-up responses. Termination
+        decisions are made by the judge, not by detecting "satisfaction" phrases.
 
         Args:
             assistant_message: The assistant's message to respond to.
-            is_final_answer: Whether the assistant considers this a final answer.
 
         Returns:
-            UserResponse with the synthetic user's reply and satisfaction status.
+            UserResponse with the synthetic user's reply.
 
         Raises:
             OrchestrationError: If the LLM call fails.
@@ -82,48 +67,11 @@ class SyntheticUserLLM:
         if assistant_message.strip().endswith("?"):
             self._questions_asked += 1
 
-        # If this is a final answer, check satisfaction
-        if is_final_answer:
-            is_satisfied = await self._check_satisfaction(assistant_message)
-            if is_satisfied:
-                # Generate a satisfied response
-                response = await self._generate_response(
-                    "The assistant has provided a helpful answer. "
-                    "Express brief thanks and indicate you're satisfied."
-                )
-                return UserResponse(
-                    message=response,
-                    is_satisfied=True,
-                    tokens_used=self._last_tokens_used,
-                )
-
-        # Generate a normal response
+        # Generate a natural follow-up response
         response = await self._generate_response()
-
-        # Check if the response indicates satisfaction, but ONLY if the agent
-        # wasn't asking a clarifying question. If the agent asked a question,
-        # the user can't be satisfied yet - they're just answering the question
-        # and may say "thanks" as a polite acknowledgment, not actual satisfaction.
-        is_satisfied = False
-        agent_asked_question = assistant_message.strip().endswith("?")
-
-        if not agent_asked_question:
-            satisfaction_phrases = [
-                "thanks",
-                "thank you",
-                "that's helpful",
-                "that helps",
-                "great",
-                "perfect",
-                "got it",
-                "makes sense",
-                "answers my question",
-            ]
-            is_satisfied = any(phrase in response.lower() for phrase in satisfaction_phrases)
 
         return UserResponse(
             message=response,
-            is_satisfied=is_satisfied,
             tokens_used=self._last_tokens_used,
         )
 
@@ -179,34 +127,6 @@ class SyntheticUserLLM:
         self._conversation_history.append(Message(role="user", content=content))
 
         return content
-
-    async def _check_satisfaction(self, assistant_response: str) -> bool:
-        """Check if the user would be satisfied with the response.
-
-        Args:
-            assistant_response: The assistant's response to evaluate.
-
-        Returns:
-            True if the user would be satisfied.
-        """
-        prompt = build_satisfaction_check_prompt(
-            persona=self._config.persona,
-            initial_query=self._config.initial_query,
-            assistant_response=assistant_response,
-        )
-
-        try:
-            result = await self._provider.generate_structured(
-                messages=[Message(role="user", content=prompt)],
-                response_schema=SatisfactionResult,
-            )
-            # Result is guaranteed to be SatisfactionResult due to response_schema
-            if isinstance(result, SatisfactionResult):
-                return result.is_satisfied
-            return False
-        except Exception:
-            # If structured generation fails, fall back to simple check
-            return False
 
     def reset(self) -> None:
         """Reset the synthetic user for a new conversation."""

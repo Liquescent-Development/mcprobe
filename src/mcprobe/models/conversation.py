@@ -32,7 +32,6 @@ class UserResponse(BaseModel):
     """Response from the synthetic user."""
 
     message: str
-    is_satisfied: bool = False
     tokens_used: int = 0
 
 
@@ -48,7 +47,7 @@ class ConversationTurn(BaseModel):
 class TerminationReason(str, Enum):
     """Reason why a conversation ended."""
 
-    USER_SATISFIED = "user_satisfied"
+    CRITERIA_MET = "criteria_met"
     MAX_TURNS = "max_turns"
     ERROR = "error"
     LOOP_DETECTED = "loop_detected"

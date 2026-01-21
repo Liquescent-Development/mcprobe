@@ -35,7 +35,7 @@ def sample_test_results() -> list[TestRunResult]:
             ],
             total_tokens=500,
             duration_seconds=2.0 + i,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         judgment = JudgmentResult(
@@ -152,7 +152,7 @@ class TestHtmlReportGenerator:
             total_tool_calls=[],
             total_tokens=0,
             duration_seconds=1.0,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         judgment = JudgmentResult(

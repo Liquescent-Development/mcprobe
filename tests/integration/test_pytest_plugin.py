@@ -111,7 +111,7 @@ class TestMCProbeAssertionError:
             total_tool_calls=[],
             total_tokens=0,
             duration_seconds=1.0,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         judgment = JudgmentResult(

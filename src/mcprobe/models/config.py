@@ -3,7 +3,18 @@
 Defines the structure for MCProbe configuration including LLM provider settings.
 """
 
+from enum import Enum
+from typing import Literal
+
 from pydantic import BaseModel, Field, SecretStr
+
+
+class ReasoningLevel(str, Enum):
+    """Reasoning/thinking effort level for LLMs that support it."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
 
 
 class LLMConfig(BaseModel):
@@ -15,6 +26,10 @@ class LLMConfig(BaseModel):
     max_tokens: int = Field(default=4096, ge=1)
     api_key: SecretStr | None = None
     base_url: str | None = None
+    # Context window size (mainly for Ollama, which defaults to only 2048)
+    context_size: int | None = Field(default=None, ge=1024)
+    # Reasoning/thinking effort level (maps to provider-specific options)
+    reasoning: Literal["low", "medium", "high"] | None = None
 
 
 class OrchestratorConfig(BaseModel):
