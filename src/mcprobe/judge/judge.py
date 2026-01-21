@@ -6,8 +6,8 @@ Evaluates conversation results against test scenario criteria.
 from pydantic import BaseModel, Field
 
 from mcprobe.exceptions import JudgmentError
-from mcprobe.judge.prompts import build_judge_prompt
-from mcprobe.models.conversation import ConversationResult
+from mcprobe.judge.prompts import build_criteria_check_prompt, build_judge_prompt
+from mcprobe.models.conversation import ConversationResult, ConversationTurn
 from mcprobe.models.judgment import (
     JudgmentResult,
     MCPSuggestion,
@@ -51,6 +51,14 @@ class JudgeEvaluation(BaseModel):
     suggestions: list[str]
     quality_metrics: JudgeQualityMetrics = Field(default_factory=JudgeQualityMetrics)
     structured_suggestions: list[JudgeStructuredSuggestion] = Field(default_factory=list)
+
+
+class CriteriaCheckResult(BaseModel):
+    """Lightweight result from criteria check - used for mid-conversation evaluation."""
+
+    all_criteria_met: bool
+    correctness_results: dict[str, bool]
+    brief_reasoning: str
 
 
 class ConversationJudge:
@@ -192,3 +200,40 @@ class ConversationJudge:
             quality_metrics=quality_metrics,
             structured_suggestions=structured_suggestions,
         )
+
+    async def check_criteria(
+        self,
+        scenario: TestScenario,
+        turns: list[ConversationTurn],
+    ) -> CriteriaCheckResult:
+        """Check if correctness criteria are met mid-conversation.
+
+        This is a lightweight evaluation used after each agent turn to determine
+        if the conversation can terminate early.
+
+        Args:
+            scenario: Test scenario with evaluation criteria.
+            turns: Conversation turns so far.
+
+        Returns:
+            CriteriaCheckResult with pass/fail status for each criterion.
+
+        Raises:
+            JudgmentError: If evaluation fails.
+        """
+        prompt = build_criteria_check_prompt(scenario, turns)
+
+        try:
+            result = await self._provider.generate_structured(
+                messages=[Message(role="user", content=prompt)],
+                response_schema=CriteriaCheckResult,
+            )
+        except Exception as e:
+            msg = f"Criteria check failed: {e}"
+            raise JudgmentError(msg) from e
+
+        if not isinstance(result, CriteriaCheckResult):
+            msg = "Judge returned invalid criteria check format"
+            raise JudgmentError(msg)
+
+        return result

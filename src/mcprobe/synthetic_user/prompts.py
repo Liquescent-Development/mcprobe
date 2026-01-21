@@ -51,30 +51,6 @@ CRITICAL: Generate USER responses, not assistant responses. Users:
    - If unclear, ask for clarification
 3. Keep responses SHORT (1-2 sentences max)
 4. The user is asking for help - do NOT provide information unprompted
-
-Signal completion by generating "Thanks, that's helpful!" or "Great, that answers my question."
-"""
-
-SATISFACTION_CHECK_PROMPT = """\
-You are evaluating whether a simulated user would be satisfied with the response.
-
-## User's Goal
-{persona}
-
-## User's Original Question
-{initial_query}
-
-## Assistant's Response
-{assistant_response}
-
-## Task
-Determine if this response adequately addresses the user's question. Consider:
-- Does it answer the core question?
-- Is the information useful and actionable?
-- Would a real user feel their question was answered?
-
-Respond with a JSON object:
-{{"is_satisfied": true/false, "reason": "brief explanation"}}
 """
 
 # Patience thresholds by level
@@ -113,27 +89,4 @@ def build_synthetic_user_prompt(config: SyntheticUserConfig) -> str:
         patience_threshold=patience_threshold,
         verbosity=traits.verbosity.value,
         expertise=traits.expertise.value,
-    )
-
-
-def build_satisfaction_check_prompt(
-    *,
-    persona: str,
-    initial_query: str,
-    assistant_response: str,
-) -> str:
-    """Build the prompt for checking user satisfaction.
-
-    Args:
-        persona: Description of the user's persona.
-        initial_query: The user's initial question.
-        assistant_response: The assistant's response to evaluate.
-
-    Returns:
-        Formatted satisfaction check prompt.
-    """
-    return SATISFACTION_CHECK_PROMPT.format(
-        persona=persona,
-        initial_query=initial_query,
-        assistant_response=assistant_response,
     )

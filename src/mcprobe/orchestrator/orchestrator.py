@@ -70,6 +70,10 @@ class ConversationOrchestrator:
     async def _run_conversation(self, scenario: TestScenario) -> ConversationResult:
         """Run the conversation loop until completion.
 
+        Uses judge-driven termination: after each agent turn, the judge evaluates
+        whether the correctness criteria have been met. If so, the conversation
+        terminates early. Otherwise, the synthetic user generates a follow-up.
+
         Args:
             scenario: Test scenario with configuration.
 
@@ -126,36 +130,28 @@ class ConversationOrchestrator:
             # Track all tool calls
             all_tool_calls.extend(agent_response.tool_calls)
 
-            # Check if agent considers the task complete
-            is_final_answer = agent_response.is_complete
-
-            # Get response from synthetic user
+            # Check criteria with judge after each agent turn
             try:
-                user_response = await self._synthetic_user.respond(
-                    agent_response.message,
-                    is_final_answer=is_final_answer,
-                )
+                criteria_result = await self._judge.check_criteria(scenario, turns)
+            except Exception as e:
+                msg = f"Judge criteria check failed: {e}"
+                raise OrchestrationError(msg) from e
+
+            # If all criteria are met, terminate successfully
+            if criteria_result.all_criteria_met:
+                final_answer = agent_response.message
+                termination_reason = TerminationReason.CRITERIA_MET
+                break
+
+            # Criteria not yet met - get follow-up from synthetic user
+            try:
+                user_response = await self._synthetic_user.respond(agent_response.message)
             except Exception as e:
                 msg = f"Synthetic user failed to respond: {e}"
                 raise OrchestrationError(msg) from e
 
             # Aggregate token usage from synthetic user
             total_tokens += user_response.tokens_used
-
-            # Check if user is satisfied
-            if user_response.is_satisfied:
-                final_answer = agent_response.message
-                termination_reason = TerminationReason.USER_SATISFIED
-                # Add final user turn
-                turns.append(
-                    ConversationTurn(
-                        role="user",
-                        content=user_response.message,
-                        tool_calls=[],
-                        timestamp=time.time(),
-                    )
-                )
-                break
 
             # Record user turn and continue
             turns.append(
@@ -174,7 +170,7 @@ class ConversationOrchestrator:
                 final_answer = agent_response.message
                 break
 
-        # If we hit max turns without satisfaction
+        # If we hit max turns without criteria being met
         if termination_reason == TerminationReason.MAX_TURNS and turns:
             # Find the last assistant message for final_answer
             for turn in reversed(turns):

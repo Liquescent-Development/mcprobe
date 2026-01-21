@@ -15,7 +15,7 @@ class TestUserResponse:
 
     def test_default_tokens(self) -> None:
         """Test UserResponse has default tokens_used of 0."""
-        response = UserResponse(message="Hello", is_satisfied=False)
+        response = UserResponse(message="Hello")
 
         assert response.tokens_used == 0
 
@@ -23,12 +23,10 @@ class TestUserResponse:
         """Test UserResponse with token count."""
         response = UserResponse(
             message="Thanks, that helps!",
-            is_satisfied=True,
             tokens_used=150,
         )
 
         assert response.message == "Thanks, that helps!"
-        assert response.is_satisfied is True
         assert response.tokens_used == 150
 
 
@@ -88,12 +86,12 @@ class TestConversationResult:
             total_tool_calls=[],
             total_tokens=250,
             duration_seconds=1.5,
-            termination_reason=TerminationReason.USER_SATISFIED,
+            termination_reason=TerminationReason.CRITERIA_MET,
         )
 
         assert result.total_tokens == 250
         assert len(result.turns) == 2
-        assert result.termination_reason == TerminationReason.USER_SATISFIED
+        assert result.termination_reason == TerminationReason.CRITERIA_MET
 
     def test_default_token_count(self) -> None:
         """Test ConversationResult default token count is 0."""

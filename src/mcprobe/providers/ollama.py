@@ -17,6 +17,16 @@ from mcprobe.providers.factory import ProviderRegistry
 # Default max tokens value from LLMConfig
 DEFAULT_MAX_TOKENS = 4096
 
+# Default context size for Ollama (much larger than Ollama's default of 2048)
+DEFAULT_CONTEXT_SIZE = 65536
+
+# Mapping from reasoning level to Ollama think budget (in tokens)
+REASONING_TO_THINK: dict[str, int] = {
+    "low": 1024,
+    "medium": 4096,
+    "high": 16384,
+}
+
 
 @ProviderRegistry.register("ollama")
 class OllamaProvider(LLMProvider):
@@ -136,12 +146,21 @@ class OllamaProvider(LLMProvider):
         elif self._config.max_tokens != DEFAULT_MAX_TOKENS:
             options["num_predict"] = self._config.max_tokens
 
+        # Set context window size (Ollama defaults to only 2048)
+        context_size = self._config.context_size or DEFAULT_CONTEXT_SIZE
+        options["num_ctx"] = context_size
+
+        # Set reasoning/thinking budget if configured
+        if self._config.reasoning:
+            think_budget = REASONING_TO_THINK.get(self._config.reasoning, 4096)
+            options["think"] = think_budget
+
         try:
             response = await self._client.chat(
                 model=self._config.model,
                 messages=ollama_messages,
                 tools=ollama_tools,
-                options=options if options else None,
+                options=options,
             )
         except ollama.ResponseError as e:
             # Parse common Ollama errors for better user feedback
@@ -220,12 +239,21 @@ class OllamaProvider(LLMProvider):
         elif self._config.max_tokens != DEFAULT_MAX_TOKENS:
             options["num_predict"] = self._config.max_tokens
 
+        # Set context window size (Ollama defaults to only 2048)
+        context_size = self._config.context_size or DEFAULT_CONTEXT_SIZE
+        options["num_ctx"] = context_size
+
+        # Set reasoning/thinking budget if configured
+        if self._config.reasoning:
+            think_budget = REASONING_TO_THINK.get(self._config.reasoning, 4096)
+            options["think"] = think_budget
+
         try:
             response = await self._client.chat(
                 model=self._config.model,
                 messages=ollama_messages,
                 format=response_schema.model_json_schema(),
-                options=options if options else None,
+                options=options,
             )
         except ollama.ResponseError as e:
             # Parse common Ollama errors for better user feedback

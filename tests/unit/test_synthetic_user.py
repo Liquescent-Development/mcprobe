@@ -56,19 +56,14 @@ class TestSyntheticUserTokenTracking:
         assert response.tokens_used == 150  # 100 + 50
 
     @pytest.mark.asyncio
-    async def test_respond_with_satisfaction_returns_tokens(
+    async def test_respond_tracks_clarifying_questions(
         self,
         mock_provider: LLMProvider,
         user_config: SyntheticUserConfig,
     ) -> None:
-        """Test that satisfied response includes token count."""
-        # Mock responses for satisfaction check and final response
-        mock_satisfaction_result = AsyncMock()
-        mock_satisfaction_result.is_satisfied = True
-        mock_provider.generate_structured = AsyncMock(return_value=mock_satisfaction_result)
-
+        """Test that respond tracks clarifying questions from the agent."""
         mock_response = LLMResponse(
-            content="Thanks, that was helpful!",
+            content="The answer is 42.",
             tool_calls=[],
             finish_reason="stop",
             usage={"prompt_tokens": 80, "completion_tokens": 30},
@@ -76,10 +71,17 @@ class TestSyntheticUserTokenTracking:
         mock_provider.generate = AsyncMock(return_value=mock_response)
 
         user = SyntheticUserLLM(mock_provider, user_config)
-        response = await user.respond("Here's your answer", is_final_answer=True)
 
-        assert response.is_satisfied is True
-        assert response.tokens_used == 110  # 80 + 30
+        # Agent asks a clarifying question
+        await user.respond("Can you tell me more about your request?")
+
+        assert user.questions_asked == 1
+
+        # Agent provides an answer (not a question)
+        await user.respond("Here's your answer.")
+
+        # Count stays at 1 since second message wasn't a question
+        assert user.questions_asked == 1
 
     @pytest.mark.asyncio
     async def test_tokens_reset_on_reset(
