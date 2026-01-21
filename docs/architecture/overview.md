@@ -63,7 +63,7 @@ The orchestrator is the central coordination layer that manages the entire test 
 - `_detect_loop(turns) -> bool`: Detect if conversation is stuck in a loop
 
 **Termination Conditions**:
-- User satisfied with response
+- Judge determines all correctness criteria are met
 - Maximum turns reached
 - Loop detected (3+ identical user messages)
 - Error occurred
@@ -77,14 +77,15 @@ An LLM-powered synthetic user that simulates realistic human interaction with th
 **Responsibilities**:
 - Maintains persona consistency throughout conversation
 - Generates initial queries based on scenario
-- Responds to agent messages naturally
-- Determines satisfaction with agent responses
+- Responds to agent messages naturally with follow-up questions
 - Tracks clarification behavior and known/unknown facts
 
 **Key Methods**:
 - `get_initial_query() -> str`: Return the initial query from scenario
-- `respond(message, is_final_answer) -> UserResponse`: Generate response to agent
+- `respond(message) -> UserResponse`: Generate natural follow-up response to agent
 - `reset()`: Clear state for new conversation
+
+**Note**: The synthetic user no longer determines satisfaction. Termination decisions are made by the judge evaluating correctness criteria after each agent turn.
 
 **Persona Traits**:
 - Patience level (low/medium/high)
@@ -98,7 +99,9 @@ An LLM-powered synthetic user that simulates realistic human interaction with th
 An LLM-powered evaluator that assesses conversation quality against defined criteria.
 
 **Responsibilities**:
-- Evaluate correctness against scenario criteria
+- Check correctness criteria after each agent turn (mid-conversation evaluation)
+- Determine when to terminate conversation (all criteria met)
+- Evaluate final conversation quality
 - Check failure conditions
 - Verify tool usage requirements
 - Assess efficiency metrics
@@ -106,7 +109,8 @@ An LLM-powered evaluator that assesses conversation quality against defined crit
 - Compute quality metrics
 
 **Key Methods**:
-- `evaluate(scenario, result) -> JudgmentResult`: Evaluate a conversation result
+- `check_criteria(scenario, turns) -> CriteriaCheckResult`: Lightweight mid-conversation check
+- `evaluate(scenario, result) -> JudgmentResult`: Full evaluation of completed conversation
 
 **Evaluation Dimensions**:
 - **Correctness**: Did the agent meet the success criteria?
@@ -175,15 +179,16 @@ class MyCustomAgent(AgentUnderTest):
    ├─ Create Judge evaluator
    └─ Create Orchestrator
 
-3. Run Conversation
+3. Run Conversation (Judge-Driven Termination)
    ├─ Synthetic User generates initial query
    ├─ Loop until termination:
    │  ├─ Agent receives message
    │  ├─ Agent makes tool calls (if applicable)
    │  ├─ Agent returns response
-   │  ├─ Synthetic User evaluates response
-   │  ├─ Synthetic User generates next message
-   │  └─ Check termination conditions
+   │  ├─ Judge evaluates correctness criteria
+   │  ├─ If all criteria met → terminate with CRITERIA_MET
+   │  ├─ Else: Synthetic User generates follow-up
+   │  └─ Check other termination conditions (max turns, loops)
    └─ Return ConversationResult
 
 4. Evaluate Result
@@ -271,7 +276,7 @@ Core data models for tracking conversations:
 - **ToolCall**: Record of a single tool invocation with parameters, result, latency, and errors
 - **ConversationTurn**: Single message exchange with role, content, tool calls, and timestamp
 - **AgentResponse**: Agent's reply including message, tool calls, completion status, and metadata
-- **UserResponse**: Synthetic user's reply with satisfaction status and token usage
+- **UserResponse**: Synthetic user's reply with token usage
 - **ConversationResult**: Complete conversation record with all turns, tool calls, tokens, duration, and termination reason
 
 ## Extension Points
