@@ -123,7 +123,8 @@ Reasoning: The agent provided a warm greeting and clearly offered assistance...
 - [Stability Checking](analysis/stability.md) - Verify scenario consistency and reliability
 
 ### Integration
-- Pytest Plugin - Use MCProbe in your test suite
+- [Claude Code](integration/claude-code.md) - AI-assisted MCP development with Claude Code
+- [Pytest Plugin](pytest/integration.md) - Use MCProbe in your test suite
 - CI/CD Setup - GitHub Actions and other platforms
 - Custom Agents - Integrate with any LLM/MCP stack
 

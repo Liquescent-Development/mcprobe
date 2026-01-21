@@ -297,6 +297,7 @@ Here's an example of using MCProbe with Claude Code to improve an MCP server:
 
 ## See Also
 
+- [Claude Code Integration](../integration/claude-code.md) - Complete setup guide for Claude Code
 - [CLI Reference](reference.md#mcprobe-serve) - Complete command reference
 - [Configuration Reference](../configuration/reference.md) - mcprobe.yaml format
 - [Running Tests](run.md) - CLI test execution
