@@ -100,19 +100,26 @@ class SyntheticUserLLM:
         # Generate a normal response
         response = await self._generate_response()
 
-        # Check if the response indicates satisfaction
-        satisfaction_phrases = [
-            "thanks",
-            "thank you",
-            "that's helpful",
-            "that helps",
-            "great",
-            "perfect",
-            "got it",
-            "makes sense",
-            "answers my question",
-        ]
-        is_satisfied = any(phrase in response.lower() for phrase in satisfaction_phrases)
+        # Check if the response indicates satisfaction, but ONLY if the agent
+        # wasn't asking a clarifying question. If the agent asked a question,
+        # the user can't be satisfied yet - they're just answering the question
+        # and may say "thanks" as a polite acknowledgment, not actual satisfaction.
+        is_satisfied = False
+        agent_asked_question = assistant_message.strip().endswith("?")
+
+        if not agent_asked_question:
+            satisfaction_phrases = [
+                "thanks",
+                "thank you",
+                "that's helpful",
+                "that helps",
+                "great",
+                "perfect",
+                "got it",
+                "makes sense",
+                "answers my question",
+            ]
+            is_satisfied = any(phrase in response.lower() for phrase in satisfaction_phrases)
 
         return UserResponse(
             message=response,
