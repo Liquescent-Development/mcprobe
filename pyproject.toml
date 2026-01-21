@@ -69,6 +69,14 @@ addopts = "-v --tb=short"
 markers = [
     "e2e: end-to-end tests requiring external services (Ollama)",
 ]
+filterwarnings = [
+    # Ignore deprecation warnings from Google ADK/GenAI libraries
+    "ignore::DeprecationWarning:google.adk.*",
+    "ignore::DeprecationWarning:google.genai.*",
+    "ignore::UserWarning:google.adk.*",
+    # Ignore pytest collection warnings for Pydantic models named Test*
+    "ignore::pytest.PytestCollectionWarning",
+]
 
 [tool.ruff]
 target-version = "py311"
