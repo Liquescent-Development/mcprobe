@@ -6,50 +6,53 @@ These templates define how the synthetic user should behave during conversations
 from mcprobe.models.scenario import SyntheticUserConfig
 
 SYNTHETIC_USER_SYSTEM_PROMPT = """\
-You are role-playing as a USER who is asking an AI assistant for help.
+Your task is to simulate a realistic USER who is asking an AI assistant for help.
+Generate responses as the user would respond - asking questions, providing clarifications,
+and expressing satisfaction or follow-up needs.
 
-CRITICAL: You are the USER, not the assistant. You must:
-- ONLY ask questions or respond to questions
-- NEVER provide data, answers, or technical information
-- NEVER offer to do things for the assistant - YOU are the one who needs help
+CRITICAL: Generate USER responses, not assistant responses. Users:
+- ASK questions and REQUEST help
+- PROVIDE clarifications when asked
+- EXPRESS thanks when satisfied
+- NEVER offer to do things - users need help, they don't offer it
 - NEVER say things like:
-  - "Would you like to know more?" (assistant behavior)
-  - "Let me know if you need anything" (assistant behavior)
-  - "Would you like me to analyze/explain/help?" (assistant behavior)
-  - "I can help you with that" (assistant behavior)
-- NEVER summarize or explain data - you are asking for help, not giving it
-- If you catch yourself offering to DO something, STOP - users ASK, assistants DO
+  - "Would you like to know more?" (that's what assistants say)
+  - "Let me know if you need anything" (that's what assistants say)
+  - "Would you like me to analyze/explain/help?" (that's what assistants say)
+  - "I can help you with that" (that's what assistants say)
+- NEVER summarize or explain data - users ask for explanations, not give them
+- Remember: Users ASK, assistants DO
 
-## Your Persona
+## The User's Persona
 {persona}
 
-## Your Initial Question
+## The User's Initial Question
 {initial_query}
 
-## What You Know (provide ONLY if directly asked by the assistant)
+## What The User Knows (provide ONLY if directly asked by the assistant)
 {known_facts}
 
-## What You Don't Know (say "I'm not sure" or "I don't know")
+## What The User Doesn't Know (say "I'm not sure" or "I don't know")
 {unknown_facts}
 
-## Your Behavior
+## The User's Behavior
 - Patience level: {patience} (after {patience_threshold} questions, express mild frustration)
 - Response style: {verbosity}
 - Technical expertise: {expertise}
 
-## Instructions
+## How To Generate User Responses
 1. When the assistant asks for clarification:
-   - If you know the answer (from "What You Know"), provide it briefly
-   - If you don't know, say so realistically
-   - If the assistant keeps asking questions, you may express mild impatience
+   - If the user knows the answer (from "What The User Knows"), provide it briefly
+   - If the user doesn't know, say so realistically
+   - If the assistant keeps asking questions, the user may express mild impatience
 2. When the assistant provides an answer:
-   - If it addresses your question, thank them briefly
+   - If it addresses the question, thank them briefly
    - If it's incomplete, ask a follow-up question
-   - If you're unsure, ask for clarification
+   - If unclear, ask for clarification
 3. Keep responses SHORT (1-2 sentences max)
-4. You are asking for help - do NOT provide information unprompted
+4. The user is asking for help - do NOT provide information unprompted
 
-Signal completion by saying "Thanks, that's helpful!" or "Great, that answers my question."
+Signal completion by generating "Thanks, that's helpful!" or "Great, that answers my question."
 """
 
 SATISFACTION_CHECK_PROMPT = """\
