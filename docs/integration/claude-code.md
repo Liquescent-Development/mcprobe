@@ -20,23 +20,39 @@ Claude Code is Anthropic's CLI tool that brings Claude's capabilities to your te
 
 ## Configuration
 
-### Step 1: Locate Your MCP Configuration
+There are two ways to add MCProbe as an MCP server: using the CLI command (recommended) or editing the configuration file directly.
 
-Claude Code stores MCP server configurations in `~/.claude/mcp.json`. Create this file if it doesn't exist:
+### Option 1: Using CLI Command (Recommended)
+
+The easiest way to add MCProbe is with the `claude mcp add` command:
 
 ```bash
-mkdir -p ~/.claude
-touch ~/.claude/mcp.json
+# Basic setup (results viewing only)
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios
+
+# With test execution enabled
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
 ```
 
-### Step 2: Add MCProbe Server
+**Important:** All options like `--transport` must come BEFORE the server name. The `--` separator prevents conflicts between Claude's flags and MCProbe's flags.
 
-Edit `~/.claude/mcp.json` to add MCProbe:
+To make it project-scoped (shared with your team):
+
+```bash
+claude mcp add --transport stdio --scope project mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
+```
+
+### Option 2: Manual Configuration File
+
+You can also edit the configuration file directly.
+
+**Project-scoped** (shared via version control): Create `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "mcprobe": {
+      "type": "stdio",
       "command": "mcprobe",
       "args": ["serve", "-r", "./test-results", "-s", "./scenarios"]
     }
@@ -44,7 +60,21 @@ Edit `~/.claude/mcp.json` to add MCProbe:
 }
 ```
 
-**Configuration options:**
+**User-scoped** (available across all projects): Edit `~/.claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "mcprobe": {
+      "type": "stdio",
+      "command": "mcprobe",
+      "args": ["serve", "-r", "./test-results", "-s", "./scenarios"]
+    }
+  }
+}
+```
+
+### MCProbe Options
 
 | Argument | Description |
 |----------|-------------|
@@ -52,14 +82,15 @@ Edit `~/.claude/mcp.json` to add MCProbe:
 | `-s, --scenarios-dir` | Directory containing scenario files (default: `.`) |
 | `-c, --config` | Path to mcprobe.yaml (required for running tests) |
 
-### Step 3: Enable Test Execution (Optional)
+### Enabling Test Execution
 
-To allow Claude to run tests, add a config file reference:
+To allow Claude to run tests via the `run_scenario` tool, you must provide a config file:
 
 ```json
 {
   "mcpServers": {
     "mcprobe": {
+      "type": "stdio",
       "command": "mcprobe",
       "args": ["serve", "-r", "./test-results", "-s", "./scenarios", "-c", "./mcprobe.yaml"]
     }
@@ -79,16 +110,16 @@ orchestrator:
   max_turns: 10
 ```
 
-### Step 4: Restart Claude Code
+### Verifying Configuration
 
-After updating `mcp.json`, restart Claude Code to load the new server:
+After configuration, verify the server is available:
 
 ```bash
-# If using Claude Code CLI
-claude --restart
+# List all configured MCP servers
+claude mcp list
 
-# Or simply start a new session
-claude
+# Check server status within Claude Code
+/mcp
 ```
 
 ## Usage Examples
@@ -229,25 +260,27 @@ Claude: [Shows improvement trend]
 
 ## Project-Specific Configuration
 
-For project-specific settings, create `.claude/mcp.json` in your project root:
+For project-specific settings, create `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "mcprobe": {
+      "type": "stdio",
       "command": "mcprobe",
-      "args": [
-        "serve",
-        "-r", "./test-results",
-        "-s", "./scenarios",
-        "-c", "./mcprobe.yaml"
-      ]
+      "args": ["serve", "-r", "./test-results", "-s", "./scenarios", "-c", "./mcprobe.yaml"]
     }
   }
 }
 ```
 
-This allows different projects to have different MCProbe configurations.
+Or use the CLI with `--scope project`:
+
+```bash
+claude mcp add --transport stdio --scope project mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
+```
+
+This allows different projects to have different MCProbe configurations and share them with your team via version control.
 
 ## Available Tools
 
@@ -269,13 +302,19 @@ Claude has access to these MCProbe tools:
 
 ### Server Not Appearing
 
-1. Verify `mcp.json` syntax is valid JSON
+1. Verify configuration with `claude mcp list`
 2. Check that `mcprobe` is in your PATH: `which mcprobe`
-3. Restart Claude Code after config changes
+3. Use `/mcp` within Claude Code to check server status
+4. Verify JSON syntax if editing config files manually
 
 ### "Configuration Required" Error
 
-The `run_scenario` tool requires a config file. Add `-c ./mcprobe.yaml` to your args.
+The `run_scenario` tool requires a config file. Add `-c ./mcprobe.yaml` to your args:
+
+```bash
+claude mcp remove mcprobe
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
+```
 
 ### Results Not Found
 
@@ -292,9 +331,21 @@ mcprobe serve -r ./test-results -s ./scenarios
 # Should start without errors (Ctrl+C to stop)
 ```
 
+### Windows Users
+
+If using native Windows (not WSL), wrap the command:
+
+```bash
+claude mcp add --transport stdio mcprobe -- cmd /c mcprobe serve -r ./test-results -s ./scenarios
+```
+
 ### Viewing Server Logs
 
-Claude Code logs MCP server output. Check for errors in Claude Code's logs or run MCProbe directly to debug.
+Use `/mcp` within Claude Code to check server status. You can also run MCProbe directly to debug:
+
+```bash
+mcprobe serve -r ./test-results -s ./scenarios
+```
 
 ## Best Practices
 

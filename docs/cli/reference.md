@@ -722,25 +722,23 @@ mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
 
 ### Claude Code Integration
 
-To use MCProbe with Claude Code, add the following to your `.claude/mcp.json`:
+Add MCProbe to Claude Code using the CLI:
 
-```json
-{
-  "mcpServers": {
-    "mcprobe": {
-      "command": "mcprobe",
-      "args": ["serve", "-r", "./test-results", "-s", "./scenarios"]
-    }
-  }
-}
+```bash
+# Basic setup (results viewing only)
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios
+
+# With test execution enabled
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
 ```
 
-To enable test execution, include the config file:
+Or create `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "mcprobe": {
+      "type": "stdio",
       "command": "mcprobe",
       "args": ["serve", "-r", "./test-results", "-s", "./scenarios", "-c", "./mcprobe.yaml"]
     }
@@ -748,11 +746,13 @@ To enable test execution, include the config file:
 }
 ```
 
-After configuring, restart Claude Code to load the MCP server. You can then ask Claude to:
+Verify with `claude mcp list` and use `/mcp` within Claude Code to check status. You can then ask Claude to:
 - "List the recent test results"
 - "Show me the conversation from the last failed test"
 - "What suggestions does the judge have for improving the MCP server?"
 - "Run the weather-query scenario and show me the results"
+
+See [Claude Code Integration](serve.md) for detailed setup instructions.
 
 ### Exit Codes
 

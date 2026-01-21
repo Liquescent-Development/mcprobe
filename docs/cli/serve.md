@@ -15,20 +15,21 @@ This enables a powerful workflow where an AI assistant can help you iteratively 
 
 ## Quick Start
 
-### 1. Start the Server
+### 1. Add MCProbe to Claude Code
+
+The easiest way is using the CLI command:
 
 ```bash
-mcprobe serve --results-dir ./test-results --scenarios-dir ./scenarios
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios
 ```
 
-### 2. Configure Claude Code
-
-Add to your `.claude/mcp.json`:
+Or create `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "mcprobe": {
+      "type": "stdio",
       "command": "mcprobe",
       "args": ["serve", "-r", "./test-results", "-s", "./scenarios"]
     }
@@ -36,9 +37,15 @@ Add to your `.claude/mcp.json`:
 }
 ```
 
-### 3. Restart Claude Code
+### 2. Verify Configuration
 
-Claude Code will connect to the MCProbe server and can now query your test results.
+```bash
+claude mcp list
+```
+
+### 3. Use in Claude Code
+
+Claude Code will connect to the MCProbe server and can now query your test results. Use `/mcp` to check server status.
 
 ## Available Tools
 
