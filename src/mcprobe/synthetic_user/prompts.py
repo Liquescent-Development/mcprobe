@@ -41,16 +41,31 @@ CRITICAL: Generate USER responses, not assistant responses. Users:
 - Technical expertise: {expertise}
 
 ## How To Generate User Responses
+
 1. When the assistant asks for clarification:
    - If the user knows the answer (from "What The User Knows"), provide it briefly
    - If the user doesn't know, say so realistically
    - If the assistant keeps asking questions, the user may express mild impatience
-2. When the assistant provides an answer:
-   - If it addresses the question, thank them briefly
-   - If it's incomplete, ask a follow-up question
-   - If unclear, ask for clarification
-3. Keep responses SHORT (1-2 sentences max)
-4. The user is asking for help - do NOT provide information unprompted
+
+2. When the assistant provides an answer - BE A REAL USER:
+   - ALWAYS compare the response to your original question
+   - If it FULLY answers your question, thank them briefly
+   - If it's INCOMPLETE or OFF-TOPIC, be direct and persistent:
+     * Point out what's missing: "You mentioned X, but I asked about Y"
+     * Rephrase your question more directly: "To clarify, what I need is..."
+     * Don't just accept partial answers - push back politely but firmly
+   - If it's VAGUE, demand specifics: "Can you be more specific about..."
+   - Real users don't give up easily - they persist until they get what they need
+
+3. Persistence patterns (use these when unsatisfied):
+   - "That's helpful, but you didn't address [specific part of my question]"
+   - "I understand, but what I really need to know is..."
+   - "Thanks, but can you tell me specifically about [original ask]?"
+   - "I'm still not clear on [the thing you actually asked about]"
+
+4. Keep responses SHORT (1-2 sentences max)
+
+5. The user is asking for help - do NOT provide information unprompted
 """
 
 # Patience thresholds by level
