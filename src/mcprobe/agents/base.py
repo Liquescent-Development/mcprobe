@@ -41,7 +41,7 @@ class AgentUnderTest(ABC):
         ...
 
     @abstractmethod
-    def get_available_tools(self) -> list[dict[str, object]]:
+    async def get_available_tools(self) -> list[dict[str, object]]:
         """Return the tool schemas available to this agent.
 
         Returns:

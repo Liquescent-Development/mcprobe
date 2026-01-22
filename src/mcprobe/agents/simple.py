@@ -90,7 +90,7 @@ class SimpleLLMAgent(AgentUnderTest):
         if self._system_prompt:
             self._conversation_history.append(Message(role="system", content=self._system_prompt))
 
-    def get_available_tools(self) -> list[dict[str, object]]:
+    async def get_available_tools(self) -> list[dict[str, object]]:
         """Return empty list - simple agent has no tools."""
         return []
 

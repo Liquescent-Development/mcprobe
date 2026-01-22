@@ -4,9 +4,11 @@ Provides tools for querying test results, analyzing trends,
 and running test scenarios via Model Context Protocol.
 """
 
+import hashlib
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -19,6 +21,22 @@ logger = logging.getLogger(__name__)
 
 # Maximum characters for tool result truncation
 _MAX_RESULT_LENGTH = 500
+
+
+def _compute_hash(content: str | list[Any] | dict[str, Any] | None) -> str | None:
+    """Compute SHA256 hash of content for change detection.
+
+    Args:
+        content: String, list, dict, or None to hash.
+
+    Returns:
+        First 16 characters of SHA256 hex digest, or None if content is None.
+    """
+    if content is None:
+        return None
+
+    text = content if isinstance(content, str) else json.dumps(content, sort_keys=True, default=str)
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def _format_result_summary(result: TestRunResult) -> str:
@@ -194,6 +212,7 @@ def _build_test_result(
     scenario_file: Path,
     results: tuple["ConversationResult", "JudgmentResult"],
     config: tuple[str, str],  # (agent_type, llm_model)
+    agent_config: tuple[str | None, list[dict[str, Any]]],  # (system_prompt, tool_schemas)
 ) -> TestRunResult:
     """Build a TestRunResult from scenario execution results."""
     import platform  # noqa: PLC0415
@@ -204,6 +223,7 @@ def _build_test_result(
 
     conversation_result, judgment_result = results
     agent_type, llm_model = config
+    system_prompt, tool_schemas = agent_config
 
     return TestRunResult(
         run_id=str(uuid.uuid4()),
@@ -220,6 +240,10 @@ def _build_test_result(
         duration_seconds=conversation_result.duration_seconds,
         mcprobe_version=mcprobe.__version__,
         python_version=platform.python_version(),
+        agent_system_prompt=system_prompt,
+        agent_system_prompt_hash=_compute_hash(system_prompt),
+        mcp_tool_schemas=tool_schemas,
+        mcp_tool_schemas_hash=_compute_hash(tool_schemas) if tool_schemas else None,
     )
 
 
@@ -530,6 +554,10 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
             orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
 
             conversation_result, judgment_result = await orchestrator.run(scenario)
+
+            # Capture agent configuration before closing
+            system_prompt = agent.get_system_prompt()
+            tool_schemas = await agent.get_available_tools()
         except Exception as e:
             logger.exception("Error running scenario")
             return f"Error: {e}"
@@ -546,6 +574,7 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
             scenario_file=full_path,
             results=(conversation_result, judgment_result),
             config=(agent_config.type, llm_config.model),
+            agent_config=(system_prompt, tool_schemas),
         )
 
         if save_results:
