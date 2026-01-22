@@ -22,9 +22,16 @@ You are checking whether an AI agent has satisfied the success criteria for a ta
 {conversation_transcript}
 
 ## Your Task
-Evaluate whether the agent's responses so far have satisfied ALL the correctness criteria.
-Be strict: a criterion is only met if the agent has clearly and completely addressed it.
-Do not mark criteria as met if the information is partial, vague, or requires inference.
+Determine if the conversation should END because the user's question has been answered.
+
+CRITICAL - User satisfaction signals completion:
+- If the user says "thanks", "that's what I needed", "perfect", "great", etc. → ALL CRITERIA MET
+- User satisfaction is the PRIMARY signal - if the user is happy, mark all_criteria_met: true
+- Do NOT continue nitpicking criteria if the user has expressed satisfaction
+
+Secondary check (only if user hasn't expressed satisfaction):
+- Evaluate if the agent substantively addressed each criterion
+- Be reasonable - minor differences in wording or thresholds are OK
 
 IMPORTANT: For correctness_results, use the EXACT criterion text as the key.
 Do NOT paraphrase, shorten, or modify the criterion text in any way.
