@@ -20,12 +20,8 @@ DEFAULT_MAX_TOKENS = 4096
 # Default context size for Ollama (much larger than Ollama's default of 2048)
 DEFAULT_CONTEXT_SIZE = 65536
 
-# Mapping from reasoning level to Ollama think budget (in tokens)
-REASONING_TO_THINK: dict[str, int] = {
-    "low": 1024,
-    "medium": 4096,
-    "high": 16384,
-}
+# Valid reasoning levels for Ollama models that support thinking (e.g., gpt-oss)
+VALID_REASONING_LEVELS = {"low", "medium", "high"}
 
 
 @ProviderRegistry.register("ollama")
@@ -150,10 +146,9 @@ class OllamaProvider(LLMProvider):
         context_size = self._config.context_size or DEFAULT_CONTEXT_SIZE
         options["num_ctx"] = context_size
 
-        # Set reasoning/thinking budget if configured
-        if self._config.reasoning:
-            think_budget = REASONING_TO_THINK.get(self._config.reasoning, 4096)
-            options["think"] = think_budget
+        # Set reasoning/thinking level if configured (for models like gpt-oss)
+        if self._config.reasoning and self._config.reasoning in VALID_REASONING_LEVELS:
+            options["think"] = self._config.reasoning
 
         try:
             response = await self._client.chat(
@@ -243,10 +238,9 @@ class OllamaProvider(LLMProvider):
         context_size = self._config.context_size or DEFAULT_CONTEXT_SIZE
         options["num_ctx"] = context_size
 
-        # Set reasoning/thinking budget if configured
-        if self._config.reasoning:
-            think_budget = REASONING_TO_THINK.get(self._config.reasoning, 4096)
-            options["think"] = think_budget
+        # Set reasoning/thinking level if configured (for models like gpt-oss)
+        if self._config.reasoning and self._config.reasoning in VALID_REASONING_LEVELS:
+            options["think"] = self._config.reasoning
 
         try:
             response = await self._client.chat(

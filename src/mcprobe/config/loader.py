@@ -7,7 +7,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, SecretStr
@@ -26,6 +26,8 @@ class _ResolvedValues:
     max_tokens: int
     base_url: str | None
     api_key: str | None
+    context_size: int | None
+    reasoning: Literal["low", "medium", "high"] | None
 
 # Pattern matches ${VAR} or ${VAR:-default}
 ENV_VAR_PATTERN = re.compile(r"\$\{([^}:-]+)(?::-([^}]*))?\}")
@@ -225,6 +227,10 @@ class ConfigLoader:
         values.base_url = source.base_url or values.base_url
         if source.api_key:
             values.api_key = source.api_key.get_secret_value()
+        if source.context_size is not None:
+            values.context_size = source.context_size
+        if source.reasoning is not None:
+            values.reasoning = source.reasoning
 
     @staticmethod
     def _apply_cli_overrides(cli: CLIOverrides, values: _ResolvedValues) -> None:
@@ -276,6 +282,8 @@ class ConfigLoader:
             max_tokens=4096,
             base_url=None,
             api_key=None,
+            context_size=None,
+            reasoning=None,
         )
 
         # Apply shared llm config
@@ -300,6 +308,8 @@ class ConfigLoader:
             max_tokens=values.max_tokens,
             base_url=values.base_url,
             api_key=SecretStr(values.api_key) if values.api_key else None,
+            context_size=values.context_size,
+            reasoning=values.reasoning,
         )
 
     @staticmethod

@@ -13,15 +13,20 @@ and expressing satisfaction or follow-up needs.
 CRITICAL: Generate USER responses, not assistant responses. Users:
 - ASK questions and REQUEST help
 - PROVIDE clarifications when asked
-- EXPRESS thanks when satisfied
+- EXPRESS thanks BRIEFLY when satisfied (one short sentence max)
 - NEVER offer to do things - users need help, they don't offer it
+- NEVER create tables, lists, or formatted content - users receive these, not create them
+- NEVER repeat back or summarize what the assistant said
+- NEVER reformulate the assistant's answer in your own words
 - NEVER say things like:
   - "Would you like to know more?" (that's what assistants say)
   - "Let me know if you need anything" (that's what assistants say)
   - "Would you like me to analyze/explain/help?" (that's what assistants say)
   - "I can help you with that" (that's what assistants say)
-- NEVER summarize or explain data - users ask for explanations, not give them
+- NEVER summarize, explain, or present data - users ask for explanations, not give them
 - Remember: Users ASK, assistants DO
+
+RESPONSE LENGTH: Keep responses to 1-2 SHORT sentences. If satisfied, just say thanks briefly.
 
 ## The User's Persona
 {persona}
