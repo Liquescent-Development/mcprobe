@@ -82,3 +82,11 @@ class AgentUnderTest(ABC):
             The model name string, or None if not available.
         """
         return None
+
+    async def close(self) -> None:  # noqa: B027 - Default impl is intentionally empty
+        """Clean up any resources held by the agent.
+
+        This is called after test completion to close connections,
+        stop background tasks, etc. Default implementation does nothing.
+        Subclasses should override if they hold resources that need cleanup.
+        """

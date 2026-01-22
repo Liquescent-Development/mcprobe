@@ -175,6 +175,21 @@ class GeminiADKAgent(AgentUnderTest):
             session_service=self._session_service,
         )
 
+    async def close(self) -> None:
+        """Clean up ADK agent resources including MCP toolset connections."""
+        # Close any MCP toolset connections in the agent's tools
+        if hasattr(self._agent, "tools") and self._agent.tools:
+            for tool in self._agent.tools:
+                # McpToolset has a close() method
+                if hasattr(tool, "close"):
+                    try:
+                        close_result = tool.close()
+                        # Handle both sync and async close methods
+                        if hasattr(close_result, "__await__"):
+                            await close_result
+                    except Exception:
+                        pass  # Best effort cleanup
+
     def get_available_tools(self) -> list[dict[str, Any]]:
         """Get tool schemas from ADK agent.
 

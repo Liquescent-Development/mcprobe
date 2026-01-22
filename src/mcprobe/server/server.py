@@ -143,6 +143,96 @@ def _format_suggestions(result: TestRunResult) -> str:
     return "\n".join(lines)
 
 
+def _resolve_scenario_path(scenario_path: str, scenarios_dir: Path) -> Path | None:
+    """Resolve scenario path, trying relative then absolute.
+
+    Returns:
+        Resolved Path if found, None otherwise.
+    """
+    full_path = scenarios_dir / scenario_path
+    if full_path.exists():
+        return full_path
+    # Try as absolute path
+    full_path = Path(scenario_path)
+    if full_path.exists():
+        return full_path
+    return None
+
+
+def _create_agent_from_config(
+    agent_config: "AgentConfig",
+    provider: "LLMProvider",
+) -> "AgentUnderTest | str":
+    """Create agent based on configuration.
+
+    Returns:
+        AgentUnderTest instance, or error string if creation fails.
+    """
+    from mcprobe.agents.simple import SimpleLLMAgent  # noqa: PLC0415
+
+    if agent_config.type == "adk":
+        from mcprobe.agents.adk import (  # noqa: PLC0415
+            GeminiADKAgent,
+            load_agent_factory,
+        )
+
+        if agent_config.factory is None:
+            return (
+                "Error: Agent factory is required for ADK agent type. "
+                "Set 'agent.factory' in config."
+            )
+
+        factory = load_agent_factory(agent_config.factory)
+        adk_agent = factory()
+        return GeminiADKAgent(adk_agent)
+
+    return SimpleLLMAgent(provider)
+
+
+def _build_test_result(
+    scenario: "TestScenario",
+    scenario_file: Path,
+    results: tuple["ConversationResult", "JudgmentResult"],
+    config: tuple[str, str],  # (agent_type, llm_model)
+) -> TestRunResult:
+    """Build a TestRunResult from scenario execution results."""
+    import platform  # noqa: PLC0415
+    import uuid  # noqa: PLC0415
+    from datetime import datetime  # noqa: PLC0415
+
+    import mcprobe  # noqa: PLC0415
+
+    conversation_result, judgment_result = results
+    agent_type, llm_model = config
+
+    return TestRunResult(
+        run_id=str(uuid.uuid4()),
+        timestamp=datetime.now(),
+        scenario_name=scenario.name,
+        scenario_file=str(scenario_file),
+        scenario_tags=scenario.tags,
+        conversation_result=conversation_result,
+        judgment_result=judgment_result,
+        agent_type=agent_type,
+        judge_model=llm_model,
+        synthetic_user_model=llm_model,
+        agent_model=llm_model,
+        duration_seconds=conversation_result.duration_seconds,
+        mcprobe_version=mcprobe.__version__,
+        python_version=platform.python_version(),
+    )
+
+
+# Type hints for lazy imports (TYPE_CHECKING pattern)
+if False:
+    from mcprobe.agents.base import AgentUnderTest
+    from mcprobe.config import AgentConfig
+    from mcprobe.models.conversation import ConversationResult
+    from mcprobe.models.judgment import JudgmentResult
+    from mcprobe.models.scenario import TestScenario
+    from mcprobe.providers.base import LLMProvider
+
+
 def create_server(  # noqa: PLR0915 - Server factory with inline tool definitions
     results_dir: Path,
     scenarios_dir: Path,
@@ -382,7 +472,7 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
     # =========================================================================
 
     @mcp.tool()
-    async def run_scenario(  # noqa: PLR0911 - Multiple early returns for error handling
+    async def run_scenario(
         scenario_path: str,
         save_results: bool = True,
     ) -> str:
@@ -398,8 +488,6 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
         Returns:
             Formatted judgment and suggestions from the test run.
         """
-        # Lazy imports to avoid circular dependencies
-        from mcprobe.agents.simple import SimpleLLMAgent  # noqa: PLC0415
         from mcprobe.judge.judge import ConversationJudge  # noqa: PLC0415
         from mcprobe.orchestrator.orchestrator import (  # noqa: PLC0415
             ConversationOrchestrator,
@@ -408,107 +496,66 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
         from mcprobe.providers.factory import create_provider  # noqa: PLC0415
         from mcprobe.synthetic_user.user import SyntheticUserLLM  # noqa: PLC0415
 
+        # Validate prerequisites
         if not file_config:
             return (
                 "Error: Cannot run scenarios without configuration. "
                 "Start the server with --config option pointing to mcprobe.yaml"
             )
 
-        # Resolve scenario path
-        full_path = scenarios_dir / scenario_path
-        if not full_path.exists():
-            # Try as absolute path
-            full_path = Path(scenario_path)
-            if not full_path.exists():
-                return f"Error: Scenario file not found: {scenario_path}"
+        full_path = _resolve_scenario_path(scenario_path, scenarios_dir)
+        if full_path is None:
+            return f"Error: Scenario file not found: {scenario_path}"
 
-        # Parse the scenario
+        # Parse scenario and resolve configs
         parser = ScenarioParser()
         try:
             scenario = parser.parse_file(full_path)
         except Exception as e:
             return f"Error parsing scenario: {e}"
 
-        # Resolve LLM config
         llm_config = ConfigLoader.resolve_llm_config(file_config, "synthetic_user")
-
-        # Resolve agent configuration
         agent_config = ConfigLoader.resolve_agent_config(file_config)
 
-        # Create provider and components
+        # Create and run with proper cleanup
         try:
-            from mcprobe.agents.base import AgentUnderTest  # noqa: PLC0415
-
             provider = create_provider(llm_config)
-
-            # Create agent based on configuration
-            agent: AgentUnderTest
-            if agent_config.type == "adk":
-                from mcprobe.agents.adk import (  # noqa: PLC0415
-                    GeminiADKAgent,
-                    load_agent_factory,
-                )
-
-                if agent_config.factory is None:
-                    return (
-                        "Error: Agent factory is required for ADK agent type. "
-                        "Set 'agent.factory' in config."
-                    )
-
-                factory = load_agent_factory(agent_config.factory)
-                adk_agent = factory()
-                agent = GeminiADKAgent(adk_agent)
-            else:
-                agent = SimpleLLMAgent(provider)
+            agent_or_error = _create_agent_from_config(agent_config, provider)
+            if isinstance(agent_or_error, str):
+                return agent_or_error
+            agent = agent_or_error
 
             synthetic_user = SyntheticUserLLM(provider, scenario.synthetic_user)
             judge = ConversationJudge(provider)
             orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
-        except Exception as e:
-            return f"Error creating test components: {e}"
 
-        # Run the scenario
-        try:
             conversation_result, judgment_result = await orchestrator.run(scenario)
         except Exception as e:
             logger.exception("Error running scenario")
-            return f"Error running scenario: {e}"
+            return f"Error: {e}"
+        finally:
+            if "agent" in locals():
+                try:
+                    await agent.close()
+                except Exception as e:
+                    logger.warning("Failed to close agent: %s", e)
 
-        # Build result object
-        import platform  # noqa: PLC0415
-        import uuid  # noqa: PLC0415
-        from datetime import datetime  # noqa: PLC0415
-
-        import mcprobe  # noqa: PLC0415
-
-        run_result = TestRunResult(
-            run_id=str(uuid.uuid4()),
-            timestamp=datetime.now(),
-            scenario_name=scenario.name,
-            scenario_file=str(full_path),
-            scenario_tags=scenario.tags,
-            conversation_result=conversation_result,
-            judgment_result=judgment_result,
-            agent_type="simple",
-            judge_model=llm_config.model,
-            synthetic_user_model=llm_config.model,
-            agent_model=llm_config.model,
-            duration_seconds=conversation_result.duration_seconds,
-            mcprobe_version=mcprobe.__version__,
-            python_version=platform.python_version(),
+        # Build and save result
+        run_result = _build_test_result(
+            scenario=scenario,
+            scenario_file=full_path,
+            results=(conversation_result, judgment_result),
+            config=(agent_config.type, llm_config.model),
         )
 
-        # Save results if requested
         if save_results:
             try:
                 storage.save(run_result)
             except Exception as e:
                 logger.warning("Failed to save results: %s", e)
 
-        # Format and return results
         judgment = _format_judgment(run_result)
         suggestions = _format_suggestions(run_result)
-
         return f"{judgment}\n\n---\n\n{suggestions}"
 
     @mcp.tool()
