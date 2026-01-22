@@ -6,10 +6,6 @@ These templates define how the judge evaluates conversations against test criter
 from mcprobe.models.conversation import ConversationResult, ConversationTurn
 from mcprobe.models.scenario import TestScenario, ToolCallCriterion
 
-# Truncation limits for result strings in output
-TRANSCRIPT_RESULT_TRUNCATE_LEN = 200
-TOOL_CALL_RESULT_TRUNCATE_LEN = 100
-
 CRITERIA_CHECK_PROMPT = """\
 You are checking whether an AI agent has satisfied the success criteria for a task.
 
@@ -156,10 +152,7 @@ def format_conversation_transcript(turns: list[ConversationTurn]) -> str:
                 if tc.error:
                     lines.append(f"     Error: {tc.error}")
                 else:
-                    result_str = str(tc.result)[:TRANSCRIPT_RESULT_TRUNCATE_LEN]
-                    if len(str(tc.result)) > TRANSCRIPT_RESULT_TRUNCATE_LEN:
-                        result_str += "..."
-                    lines.append(f"     Result: {result_str}")
+                    lines.append(f"     Result: {tc.result}")
     return "\n".join(lines)
 
 
@@ -182,10 +175,7 @@ def format_tool_calls(result: ConversationResult) -> str:
         if tc.error:
             lines.append(f"   Error: {tc.error}")
         else:
-            result_str = str(tc.result)[:TOOL_CALL_RESULT_TRUNCATE_LEN]
-            if len(str(tc.result)) > TOOL_CALL_RESULT_TRUNCATE_LEN:
-                result_str += "..."
-            lines.append(f"   Result: {result_str}")
+            lines.append(f"   Result: {tc.result}")
         lines.append(f"   Latency: {tc.latency_ms:.1f}ms")
     return "\n".join(lines)
 
