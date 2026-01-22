@@ -30,10 +30,13 @@ Evaluate whether the agent's responses so far have satisfied ALL the correctness
 Be strict: a criterion is only met if the agent has clearly and completely addressed it.
 Do not mark criteria as met if the information is partial, vague, or requires inference.
 
+IMPORTANT: For correctness_results, use the EXACT criterion text as the key.
+Do NOT paraphrase, shorten, or modify the criterion text in any way.
+
 Respond in JSON format:
 {{
     "all_criteria_met": true/false,
-    "correctness_results": {{"criterion": true/false, ...}},
+    "correctness_results": {{"<exact criterion text>": true/false, ...}},
     "brief_reasoning": "One sentence explaining your assessment"
 }}
 """
@@ -91,12 +94,16 @@ If there were issues with tool usage, provide structured suggestions categorized
 - schema: Schema definition had issues
 
 ## Your Task
-Evaluate the conversation and provide your assessment in JSON format:
+Evaluate the conversation and provide your assessment in JSON format.
+
+IMPORTANT: For correctness_results and failure_results, use the EXACT criterion text as the key.
+Do NOT paraphrase, shorten, or modify the criterion text in any way.
+
 {{
     "passed": true/false,
     "score": 0.0-1.0,
-    "correctness_results": {{"criterion": true/false, ...}},
-    "failure_results": {{"criterion": true/false, ...}},
+    "correctness_results": {{"<exact criterion text>": true/false, ...}},
+    "failure_results": {{"<exact criterion text>": true/false, ...}},
     "tool_usage_results": {{
         "required_tools_used": ["list"],
         "prohibited_tools_used": ["list"],
