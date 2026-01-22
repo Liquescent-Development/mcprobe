@@ -511,6 +511,62 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
 
         return f"{judgment}\n\n---\n\n{suggestions}"
 
+    @mcp.tool()
+    async def generate_report(
+        output_path: str | None = None,
+        report_format: str = "html",
+        title: str = "MCProbe Test Report",
+        limit: int = 100,
+    ) -> str:
+        """Generate a report from stored test results.
+
+        Creates an HTML, JSON, or JUnit report from the test results
+        in the results directory.
+
+        Args:
+            output_path: Output file path (default: report.html in results dir)
+            report_format: Format: 'html', 'json', or 'junit' (default: html)
+            title: Title for the report (default: 'MCProbe Test Report')
+            limit: Maximum number of results to include (default: 100)
+
+        Returns:
+            Path to the generated report file.
+        """
+        from mcprobe.reporting import (  # noqa: PLC0415
+            HtmlReportGenerator,
+            JsonReportGenerator,
+            JunitReportGenerator,
+        )
+
+        results = loader.load_all(limit=limit)
+
+        if not results:
+            return "No test results found to generate report."
+
+        # Determine output path
+        if output_path:
+            output = Path(output_path)
+        else:
+            ext = {"html": ".html", "json": ".json", "junit": ".xml"}.get(
+                report_format, ".html"
+            )
+            output = results_dir / f"report{ext}"
+
+        # Generate report based on format
+        if report_format == "html":
+            html_gen = HtmlReportGenerator()
+            html_gen.generate(results, output, title=title)
+        elif report_format == "json":
+            json_gen = JsonReportGenerator()
+            json_gen.generate(results, output)
+        elif report_format == "junit":
+            junit_gen = JunitReportGenerator()
+            junit_gen.generate(results, output, suite_name=title)
+        else:
+            return f"Error: Unknown format '{report_format}'. Valid: html, json, junit"
+
+        return f"Report generated: {output.absolute()}\n\nIncluded {len(results)} test result(s)."
+
     return mcp
 
 

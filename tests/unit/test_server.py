@@ -446,6 +446,7 @@ class TestServerCreation:
             "get_trends",
             "get_latest",
             "run_scenario",
+            "generate_report",
         ]
 
         for tool_name in expected_tools:

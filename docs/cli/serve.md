@@ -222,6 +222,21 @@ Runs a test scenario and returns the results. **Requires the server to be starte
 Run weather-query.yaml and tell me the results
 ```
 
+#### `generate_report`
+
+Generates an HTML, JSON, or JUnit report from stored test results.
+
+**Parameters:**
+- `output_path` (optional): Output file path (default: report.html in results dir)
+- `report_format` (default: "html"): Format: 'html', 'json', or 'junit'
+- `title` (default: "MCProbe Test Report"): Title for the report
+- `limit` (default: 100): Maximum number of results to include
+
+**Example:**
+```
+Generate an HTML report from the test results
+```
+
 ## Enabling Test Execution
 
 To enable the `run_scenario` tool, you must provide a configuration file:

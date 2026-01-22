@@ -299,6 +299,7 @@ Claude has access to these MCProbe tools:
 | `get_trends` | Get trend analysis | Track progress over time |
 | `get_latest` | Get most recent result | Quick status check |
 | `run_scenario` | Execute a test | Run tests on demand |
+| `generate_report` | Generate HTML/JSON/JUnit report | Create shareable reports |
 
 ## Troubleshooting
 
