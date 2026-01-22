@@ -22,6 +22,8 @@ Claude Code is Anthropic's CLI tool that brings Claude's capabilities to your te
 
 There are two ways to add MCProbe as an MCP server: using the CLI command (recommended) or editing the configuration file directly.
 
+> **Note:** You don't need to run `mcprobe serve` manually. Claude Code automatically starts the server when needed based on your configuration.
+
 ### Option 1: Using CLI Command (Recommended)
 
 The easiest way to add MCProbe is with the `claude mcp add` command:
@@ -339,13 +341,17 @@ If using native Windows (not WSL), wrap the command:
 claude mcp add --transport stdio mcprobe -- cmd /c mcprobe serve -r ./test-results -s ./scenarios
 ```
 
-### Viewing Server Logs
+### Testing the Server Manually
 
-Use `/mcp` within Claude Code to check server status. You can also run MCProbe directly to debug:
+If you need to debug, you can run MCProbe directly to verify it starts correctly:
 
 ```bash
 mcprobe serve -r ./test-results -s ./scenarios
+# Server starts and waits for MCP protocol messages on stdin
+# Press Ctrl+C to stop
 ```
+
+This is only for debugging - in normal use, Claude Code starts the server automatically based on your configuration.
 
 ## Best Practices
 

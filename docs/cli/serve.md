@@ -37,6 +37,8 @@ Or create `.mcp.json` in your project root:
 }
 ```
 
+> **Note:** You don't need to run `mcprobe serve` manually. Claude Code automatically starts the server based on your configuration.
+
 ### 2. Verify Configuration
 
 ```bash
@@ -45,7 +47,7 @@ claude mcp list
 
 ### 3. Use in Claude Code
 
-Claude Code will connect to the MCProbe server and can now query your test results. Use `/mcp` to check server status.
+Claude Code will automatically start MCProbe when needed and can query your test results. Use `/mcp` to check server status.
 
 ## Available Tools
 
