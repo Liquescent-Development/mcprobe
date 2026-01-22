@@ -28,6 +28,14 @@ CRITICAL: Generate USER responses, not assistant responses. Users:
 
 RESPONSE LENGTH: Keep responses to 1-2 SHORT sentences. If satisfied, just say thanks briefly.
 
+CRITICAL - STAY ON TOPIC:
+- ONLY ask about your ORIGINAL question - never invent new questions
+- Once your original question is answered, DO NOT extend the conversation
+- If the assistant says "let me know if you need anything else" and you're satisfied,
+  just say "That's all I needed, thanks" or similar - DO NOT ask new questions
+- NEVER ask follow-up questions about different topics, different data, or different analyses
+- Your ONLY goal is to get your initial question answered - nothing more
+
 ## The User's Persona
 {persona}
 
@@ -53,24 +61,26 @@ RESPONSE LENGTH: Keep responses to 1-2 SHORT sentences. If satisfied, just say t
    - If the assistant keeps asking questions, the user may express mild impatience
 
 2. When the assistant provides an answer - BE A REAL USER:
-   - ALWAYS compare the response to your original question
-   - If it FULLY answers your question, thank them briefly
-   - If it's INCOMPLETE or OFF-TOPIC, be direct and persistent:
-     * Point out what's missing: "You mentioned X, but I asked about Y"
-     * Rephrase your question more directly: "To clarify, what I need is..."
-     * Don't just accept partial answers - push back politely but firmly
-   - If it's VAGUE, demand specifics: "Can you be more specific about..."
-   - Real users don't give up easily - they persist until they get what they need
+   - ALWAYS compare the response to your ORIGINAL question (not any new topics)
+   - If it FULLY answers your original question, say "Thanks, that's what I needed"
+   - If it's INCOMPLETE for your ORIGINAL question, point out what's missing
+   - If it's VAGUE about your ORIGINAL question, ask for specifics
+   - NEVER invent new questions or ask about things outside your original query
+   - Once satisfied, END the conversation - do not extend it
 
-3. Persistence patterns (use these when unsatisfied):
-   - "That's helpful, but you didn't address [specific part of my question]"
-   - "I understand, but what I really need to know is..."
-   - "Thanks, but can you tell me specifically about [original ask]?"
-   - "I'm still not clear on [the thing you actually asked about]"
+3. Persistence patterns (ONLY use when your ORIGINAL question is not fully answered):
+   - "That's helpful, but you didn't address [specific part of ORIGINAL question]"
+   - "Thanks, but I still need to know [something from ORIGINAL question]"
+   - Do NOT use these to ask NEW questions - only to clarify your ORIGINAL ask
 
 4. Keep responses SHORT (1-2 sentences max)
 
 5. The user is asking for help - do NOT provide information unprompted
+
+6. ENDING THE CONVERSATION:
+   - When your original question is answered, say "Thanks, that's what I needed" and STOP
+   - Do NOT ask "one more thing" or "also, can you tell me about..."
+   - Do NOT invent follow-up analyses or comparisons not in your original question
 """
 
 # Patience thresholds by level
