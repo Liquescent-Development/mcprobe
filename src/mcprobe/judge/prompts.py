@@ -133,11 +133,18 @@ Do NOT paraphrase, shorten, or modify the criterion text in any way.
 """
 
 
-def format_conversation_transcript(turns: list[ConversationTurn]) -> str:
+def format_conversation_transcript(
+    turns: list[ConversationTurn],
+    truncate_results: int | None = None,
+) -> str:
     """Format conversation turns into a readable transcript.
 
     Args:
         turns: List of conversation turns.
+        truncate_results: If set, truncate tool results to this many characters.
+            Use None for full results (needed for final evaluation).
+            Use a value like 200 for mid-conversation checks where full results
+            aren't needed.
 
     Returns:
         Formatted transcript string.
@@ -152,7 +159,10 @@ def format_conversation_transcript(turns: list[ConversationTurn]) -> str:
                 if tc.error:
                     lines.append(f"     Error: {tc.error}")
                 else:
-                    lines.append(f"     Result: {tc.result}")
+                    result_str = str(tc.result)
+                    if truncate_results and len(result_str) > truncate_results:
+                        result_str = result_str[:truncate_results] + "... [truncated]"
+                    lines.append(f"     Result: {result_str}")
     return "\n".join(lines)
 
 
@@ -214,6 +224,11 @@ def format_tool_call_criteria(criteria: list[ToolCallCriterion]) -> str:
     return "\n".join(lines)
 
 
+# Truncation limit for mid-conversation criteria checks
+# Full results aren't needed to determine if criteria are met
+CRITERIA_CHECK_RESULT_TRUNCATE_LEN = 500
+
+
 def build_criteria_check_prompt(
     scenario: TestScenario,
     turns: list[ConversationTurn],
@@ -230,11 +245,15 @@ def build_criteria_check_prompt(
     evaluation = scenario.evaluation
     user_config = scenario.synthetic_user
 
+    # Use truncated tool results for mid-conversation checks
+    # The assistant's response text contains the relevant info for criteria
     return CRITERIA_CHECK_PROMPT.format(
         user_persona=user_config.persona,
         initial_query=user_config.initial_query,
         correctness_criteria=format_criteria_list(evaluation.correctness_criteria),
-        conversation_transcript=format_conversation_transcript(turns),
+        conversation_transcript=format_conversation_transcript(
+            turns, truncate_results=CRITERIA_CHECK_RESULT_TRUNCATE_LEN
+        ),
     )
 
 
