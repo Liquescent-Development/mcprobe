@@ -1,0 +1,369 @@
+# Claude Code Integration
+
+This guide explains how to integrate MCProbe with [Claude Code](https://claude.ai/code), enabling AI-assisted development and testing of MCP servers.
+
+## Overview
+
+Claude Code is Anthropic's CLI tool that brings Claude's capabilities to your terminal. By connecting MCProbe as an MCP server, you can:
+
+- **Query test results** directly in conversation with Claude
+- **Analyze failures** and get suggestions for fixing issues
+- **Run tests** and see results without leaving your editor
+- **Track trends** to identify regressions over time
+- **Iterate quickly** on MCP server improvements with AI guidance
+
+## Prerequisites
+
+1. **Claude Code installed** - Follow [Claude Code installation instructions](https://claude.ai/code)
+2. **MCProbe installed** - `pip install mcprobe` or `uv add mcprobe`
+3. **Test results directory** - Run some tests first with `mcprobe run`
+
+## Configuration
+
+There are two ways to add MCProbe as an MCP server: using the CLI command (recommended) or editing the configuration file directly.
+
+> **Note:** You don't need to run `mcprobe serve` manually. Claude Code automatically starts the server when needed based on your configuration.
+
+### Option 1: Using CLI Command (Recommended)
+
+The easiest way to add MCProbe is with the `claude mcp add` command:
+
+```bash
+# Basic setup (results viewing only)
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios
+
+# With test execution enabled
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
+```
+
+**Important:** All options like `--transport` must come BEFORE the server name. The `--` separator prevents conflicts between Claude's flags and MCProbe's flags.
+
+To make it project-scoped (shared with your team):
+
+```bash
+claude mcp add --transport stdio --scope project mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
+```
+
+### Option 2: Manual Configuration File
+
+You can also edit the configuration file directly.
+
+**Project-scoped** (shared via version control): Create `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "mcprobe": {
+      "type": "stdio",
+      "command": "mcprobe",
+      "args": ["serve", "-r", "./test-results", "-s", "./scenarios"]
+    }
+  }
+}
+```
+
+**User-scoped** (available across all projects): Edit `~/.claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "mcprobe": {
+      "type": "stdio",
+      "command": "mcprobe",
+      "args": ["serve", "-r", "./test-results", "-s", "./scenarios"]
+    }
+  }
+}
+```
+
+### MCProbe Options
+
+| Argument | Description |
+|----------|-------------|
+| `-r, --results-dir` | Directory containing test results (default: `./test-results`) |
+| `-s, --scenarios-dir` | Directory containing scenario files (default: `.`) |
+| `-c, --config` | Path to mcprobe.yaml (required for running tests) |
+
+### Enabling Test Execution
+
+To allow Claude to run tests via the `run_scenario` tool, you must provide a config file:
+
+```json
+{
+  "mcpServers": {
+    "mcprobe": {
+      "type": "stdio",
+      "command": "mcprobe",
+      "args": ["serve", "-r", "./test-results", "-s", "./scenarios", "-c", "./mcprobe.yaml"]
+    }
+  }
+}
+```
+
+Your `mcprobe.yaml` should contain LLM settings:
+
+```yaml
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+
+orchestrator:
+  max_turns: 10
+```
+
+### Verifying Configuration
+
+After configuration, verify the server is available:
+
+```bash
+# List all configured MCP servers
+claude mcp list
+
+# Check server status within Claude Code
+/mcp
+```
+
+## Usage Examples
+
+Once configured, you can interact with MCProbe naturally in Claude Code:
+
+### Viewing Test Results
+
+```
+You: Show me the recent test results
+
+Claude: [Calls list_results]
+Here are your recent test results:
+
+- **Weather Query Test** [PASSED] Score: 0.92 | 2024-01-21 14:30
+- **Search API Test** [FAILED] Score: 0.45 | 2024-01-21 14:15
+- **Greeting Test** [PASSED] Score: 0.98 | 2024-01-21 14:00
+
+Summary: 2/3 passed
+```
+
+### Investigating Failures
+
+```
+You: Why did the Search API Test fail?
+
+Claude: [Calls get_judgment with the run ID]
+The Search API Test failed because:
+
+### Correctness Criteria
+  - Search Returns Results (FAILED)
+  + Query Parameter Accepted
+
+### Judge Reasoning
+The agent attempted to use the search tool but received an empty result set.
+The tool description doesn't specify how to handle pagination...
+```
+
+### Getting Improvement Suggestions
+
+```
+You: What does the judge suggest for improving the MCP server?
+
+Claude: [Calls get_suggestions]
+Based on the test analysis, here are suggestions:
+
+**DESCRIPTION** (medium)
+Tool: `search`
+Issue: Description doesn't explain pagination
+Suggestion: Add documentation about limit/offset parameters
+
+**RETURN_VALUE** (low)
+Tool: `search`
+Issue: Empty results return unclear format
+Suggestion: Return explicit empty array with metadata
+```
+
+### Running Tests
+
+```
+You: Run the weather-query scenario and show me the results
+
+Claude: [Calls run_scenario]
+Running weather-query.yaml...
+
+**Result: PASSED** (Score: 0.95)
+
+### Correctness Criteria
+  + Returns Temperature
+  + Correct Location
+  + Includes Conditions
+
+The agent successfully retrieved and presented the weather information.
+```
+
+### Tracking Trends
+
+```
+You: How is the Weather Query Test trending?
+
+Claude: [Calls get_trends]
+## Trend Analysis: Weather Query Test
+
+**Pass Rate**: 95% (↑ improving)
+**Average Score**: 0.91
+**Last 10 runs**: 9 passed, 1 failed
+
+The test has improved since last week when we updated the tool description.
+```
+
+## Workflow: Iterative MCP Development
+
+Here's a recommended workflow for developing MCP servers with Claude Code:
+
+### 1. Generate Initial Scenarios
+
+```bash
+mcprobe generate-scenarios -s "npx your-mcp-server" -o ./scenarios
+```
+
+### 2. Run Initial Tests
+
+```bash
+mcprobe run ./scenarios --config mcprobe.yaml
+```
+
+### 3. Analyze Results with Claude
+
+```
+You: Analyze the test results and identify the main issues
+
+Claude: [Reviews results and provides analysis]
+```
+
+### 4. Implement Fixes
+
+```
+You: Can you help me improve the get_weather tool description based on the feedback?
+
+Claude: Based on the judge's suggestions, here's an improved description...
+```
+
+### 5. Re-test and Verify
+
+```
+You: Run the weather tests again to verify the fix
+
+Claude: [Runs tests and shows improved results]
+```
+
+### 6. Track Progress
+
+```
+You: Show me the trend for weather tests over the last week
+
+Claude: [Shows improvement trend]
+```
+
+## Project-Specific Configuration
+
+For project-specific settings, create `.mcp.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "mcprobe": {
+      "type": "stdio",
+      "command": "mcprobe",
+      "args": ["serve", "-r", "./test-results", "-s", "./scenarios", "-c", "./mcprobe.yaml"]
+    }
+  }
+}
+```
+
+Or use the CLI with `--scope project`:
+
+```bash
+claude mcp add --transport stdio --scope project mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
+```
+
+This allows different projects to have different MCProbe configurations and share them with your team via version control.
+
+## Available Tools
+
+Claude has access to these MCProbe tools:
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `list_scenarios` | List scenario files | See what tests are available |
+| `list_results` | List recent results | Get overview of test history |
+| `get_result` | Get full result by ID | Deep dive into specific run |
+| `get_conversation` | Get conversation transcript | See exactly what happened |
+| `get_judgment` | Get judge evaluation | Understand pass/fail reasons |
+| `get_suggestions` | Get improvement suggestions | Learn how to fix issues |
+| `get_trends` | Get trend analysis | Track progress over time |
+| `get_latest` | Get most recent result | Quick status check |
+| `run_scenario` | Execute a test | Run tests on demand |
+| `generate_report` | Generate HTML/JSON/JUnit report | Create shareable reports |
+
+## Troubleshooting
+
+### Server Not Appearing
+
+1. Verify configuration with `claude mcp list`
+2. Check that `mcprobe` is in your PATH: `which mcprobe`
+3. Use `/mcp` within Claude Code to check server status
+4. Verify JSON syntax if editing config files manually
+
+### "Configuration Required" Error
+
+The `run_scenario` tool requires a config file. Add `-c ./mcprobe.yaml` to your args:
+
+```bash
+claude mcp remove mcprobe
+claude mcp add --transport stdio mcprobe -- mcprobe serve -r ./test-results -s ./scenarios -c ./mcprobe.yaml
+```
+
+### Results Not Found
+
+Ensure the results directory exists and contains test results:
+```bash
+ls -la ./test-results/
+```
+
+### Connection Issues
+
+Check that MCProbe can start:
+```bash
+mcprobe serve -r ./test-results -s ./scenarios
+# Should start without errors (Ctrl+C to stop)
+```
+
+### Windows Users
+
+If using native Windows (not WSL), wrap the command:
+
+```bash
+claude mcp add --transport stdio mcprobe -- cmd /c mcprobe serve -r ./test-results -s ./scenarios
+```
+
+### Testing the Server Manually
+
+If you need to debug, you can run MCProbe directly to verify it starts correctly:
+
+```bash
+mcprobe serve -r ./test-results -s ./scenarios
+# Server starts and waits for MCP protocol messages on stdin
+# Press Ctrl+C to stop
+```
+
+This is only for debugging - in normal use, Claude Code starts the server automatically based on your configuration.
+
+## Best Practices
+
+1. **Run tests before starting Claude Code** - Ensure you have results to analyze
+2. **Use project-specific configs** - Keep settings with your project
+3. **Include the config file** - Enable test execution for the full workflow
+4. **Commit your scenarios** - Version control your test definitions
+5. **Review trends regularly** - Catch regressions early
+
+## See Also
+
+- [MCP Server Reference](../cli/serve.md) - Complete serve command documentation
+- [CLI Reference](../cli/reference.md#mcprobe-serve) - All MCProbe commands
+- [Configuration Reference](../configuration/reference.md) - mcprobe.yaml format
