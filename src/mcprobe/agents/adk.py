@@ -190,16 +190,32 @@ class GeminiADKAgent(AgentUnderTest):
                     except Exception:
                         pass  # Best effort cleanup
 
-    def get_available_tools(self) -> list[dict[str, Any]]:
-        """Get tool schemas from ADK agent.
+    async def get_available_tools(self) -> list[dict[str, Any]]:
+        """Get tool schemas from ADK agent's MCP toolsets.
 
         Returns:
-            List of tool schemas (empty for now - async introspection needed).
+            List of tool schemas extracted from any McpToolset instances.
         """
-        # ADK agents have tools attribute with McpToolset
-        # Tool introspection requires async call to toolset.get_tools()
-        # For now, return empty list - can be enhanced later
-        return []
+        tools: list[dict[str, Any]] = []
+
+        if not hasattr(self._agent, "tools") or not self._agent.tools:
+            return tools
+
+        for toolset in self._agent.tools:
+            # Check if this is an McpToolset with get_tools method
+            if hasattr(toolset, "get_tools"):
+                try:
+                    toolset_tools = await toolset.get_tools()
+                    for tool in toolset_tools:
+                        tools.append({
+                            "name": getattr(tool, "name", "unknown"),
+                            "description": getattr(tool, "description", ""),
+                            "input_schema": getattr(tool, "inputSchema", {}),
+                        })
+                except Exception:
+                    pass  # Best effort - continue with other toolsets
+
+        return tools
 
     def get_system_prompt(self) -> str | None:
         """Return ADK agent's instruction (system prompt).
