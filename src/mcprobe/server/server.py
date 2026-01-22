@@ -382,7 +382,7 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
     # =========================================================================
 
     @mcp.tool()
-    async def run_scenario(
+    async def run_scenario(  # noqa: PLR0911 - Multiple early returns for error handling
         scenario_path: str,
         save_results: bool = True,
     ) -> str:
@@ -432,10 +432,35 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
         # Resolve LLM config
         llm_config = ConfigLoader.resolve_llm_config(file_config, "synthetic_user")
 
+        # Resolve agent configuration
+        agent_config = ConfigLoader.resolve_agent_config(file_config)
+
         # Create provider and components
         try:
+            from mcprobe.agents.base import AgentUnderTest  # noqa: PLC0415
+
             provider = create_provider(llm_config)
-            agent = SimpleLLMAgent(provider)
+
+            # Create agent based on configuration
+            agent: AgentUnderTest
+            if agent_config.type == "adk":
+                from mcprobe.agents.adk import (  # noqa: PLC0415
+                    GeminiADKAgent,
+                    load_agent_factory,
+                )
+
+                if agent_config.factory is None:
+                    return (
+                        "Error: Agent factory is required for ADK agent type. "
+                        "Set 'agent.factory' in config."
+                    )
+
+                factory = load_agent_factory(agent_config.factory)
+                adk_agent = factory()
+                agent = GeminiADKAgent(adk_agent)
+            else:
+                agent = SimpleLLMAgent(provider)
+
             synthetic_user = SyntheticUserLLM(provider, scenario.synthetic_user)
             judge = ConversationJudge(provider)
             orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
