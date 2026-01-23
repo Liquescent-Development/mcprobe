@@ -138,6 +138,7 @@ class ConversationJudge:
         tool_usage_dict = {
             "required_tools": eval_config.tool_usage.required_tools,
             "required_tools_used": required_used if isinstance(required_used, list) else [],
+            "optional_tools": eval_config.tool_usage.optional_tools,
             "prohibited_tools": eval_config.tool_usage.prohibited_tools,
             "prohibited_tools_used": prohibited_used if isinstance(prohibited_used, list) else [],
             "all_required_used": tool_usage.get("all_required_used", False),
