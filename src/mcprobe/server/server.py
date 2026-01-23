@@ -207,6 +207,51 @@ def _create_agent_from_config(
     return SimpleLLMAgent(provider)
 
 
+async def _extract_tool_schemas(
+    file_config: "FileConfig",
+    agent: "AgentUnderTest",
+) -> list[dict[str, Any]]:
+    """Extract MCP tool schemas from server config or agent.
+
+    Prefers extracting from mcp_server config (most reliable), falls back
+    to agent.get_available_tools() for ADK agents without mcp_server config.
+
+    Args:
+        file_config: Configuration with optional mcp_server settings.
+        agent: The agent under test (fallback for ADK agents).
+
+    Returns:
+        List of tool schema dictionaries.
+    """
+    tool_schemas: list[dict[str, Any]] = []
+
+    # Try extracting from MCP server config first
+    if file_config.mcp_server:
+        try:
+            from mcprobe.generator.mcp_client import extract_tools  # noqa: PLC0415
+
+            server_tools = await extract_tools(file_config.mcp_server)
+            tool_schemas = [
+                {
+                    "name": t.name,
+                    "description": t.description,
+                    "input_schema": t.input_schema,
+                }
+                for t in server_tools.tools
+            ]
+        except Exception as e:
+            logger.warning("Failed to extract MCP tool schemas from server: %s", e)
+
+    # Fall back to agent's tools (for ADK agents without mcp_server config)
+    if not tool_schemas:
+        try:
+            tool_schemas = await agent.get_available_tools()
+        except Exception as e:
+            logger.warning("Failed to get tools from agent: %s", e)
+
+    return tool_schemas
+
+
 def _build_test_result(
     scenario: "TestScenario",
     scenario_file: Path,
@@ -557,7 +602,7 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
 
             # Capture agent configuration before closing
             system_prompt = agent.get_system_prompt()
-            tool_schemas = await agent.get_available_tools()
+            tool_schemas = await _extract_tool_schemas(file_config, agent)
         except Exception as e:
             logger.exception("Error running scenario")
             return f"Error: {e}"
