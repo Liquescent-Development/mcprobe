@@ -7,6 +7,7 @@ and running test scenarios via Model Context Protocol.
 import hashlib
 import json
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -330,6 +331,17 @@ def _resolve_scenario_configs(
     return judge_config, synthetic_user_config, agent_config
 
 
+@dataclass
+class ScenarioRunResult:
+    """Result of running a single scenario."""
+
+    path: str
+    passed: bool
+    message: str
+    score: float | None = None
+    run_result: "TestRunResult | None" = None
+
+
 # Type hints for lazy imports (TYPE_CHECKING pattern)
 if False:
     from mcprobe.agents.base import AgentUnderTest
@@ -338,6 +350,7 @@ if False:
     from mcprobe.models.conversation import ConversationResult
     from mcprobe.models.judgment import JudgmentResult
     from mcprobe.models.scenario import TestScenario
+    from mcprobe.persistence import TestRunResult
     from mcprobe.providers.base import LLMProvider
 
 
@@ -681,6 +694,139 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
         judgment = _format_judgment(run_result)
         suggestions = _format_suggestions(run_result)
         return f"{judgment}\n\n---\n\n{suggestions}"
+
+    async def _execute_scenario(
+        scenario_path: str,
+        save: bool,
+    ) -> ScenarioRunResult:
+        """Execute a single scenario and return structured result."""
+        from mcprobe.judge.judge import ConversationJudge  # noqa: PLC0415
+        from mcprobe.orchestrator.orchestrator import (  # noqa: PLC0415
+            ConversationOrchestrator,
+        )
+        from mcprobe.parser.scenario import ScenarioParser  # noqa: PLC0415
+        from mcprobe.providers.factory import create_provider  # noqa: PLC0415
+        from mcprobe.synthetic_user.user import SyntheticUserLLM  # noqa: PLC0415
+
+        full_path = _resolve_scenario_path(scenario_path, scenarios_dir)
+        if full_path is None:
+            return ScenarioRunResult(scenario_path, False, "File not found")
+
+        parser = ScenarioParser()
+        try:
+            scenario = parser.parse_file(full_path)
+        except Exception as e:
+            return ScenarioRunResult(scenario_path, False, f"Parse error: {e}")
+
+        judge_config, synthetic_user_config, agent_config = _resolve_scenario_configs(
+            file_config, scenario  # type: ignore[arg-type]
+        )
+
+        agent = None
+        try:
+            judge_provider = create_provider(judge_config)
+            synthetic_user_provider = create_provider(synthetic_user_config)
+            agent_or_error = _create_agent_from_config(
+                agent_config, synthetic_user_provider
+            )
+            if isinstance(agent_or_error, str):
+                return ScenarioRunResult(scenario_path, False, agent_or_error)
+            agent = agent_or_error
+
+            synthetic_user = SyntheticUserLLM(
+                synthetic_user_provider,
+                scenario.synthetic_user,
+                extra_instructions=synthetic_user_config.extra_instructions,
+            )
+            judge = ConversationJudge(
+                judge_provider,
+                extra_instructions=judge_config.extra_instructions,
+            )
+            orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
+
+            conversation_result, judgment_result = await orchestrator.run(scenario)
+
+            system_prompt = agent.get_system_prompt()
+            agent_model = agent.get_model_name()
+            tool_schemas = await _extract_tool_schemas(file_config, agent)  # type: ignore[arg-type]
+        except Exception as e:
+            logger.exception("Error running scenario %s", scenario_path)
+            return ScenarioRunResult(scenario_path, False, f"Error: {e}")
+        finally:
+            if agent is not None:
+                try:
+                    await agent.close()
+                except Exception as e:
+                    logger.warning("Failed to close agent: %s", e)
+
+        run_result = _build_test_result(
+            scenario=scenario,
+            scenario_file=full_path,
+            results=(conversation_result, judgment_result),
+            models=(judge_config.model, synthetic_user_config.model, agent_model),
+            agent_info=(agent_config.type, system_prompt, tool_schemas),
+        )
+
+        if save:
+            try:
+                storage.save(run_result)
+            except Exception as e:
+                logger.warning("Failed to save results: %s", e)
+
+        passed = judgment_result.passed
+        score = judgment_result.score
+        msg = f"{'PASSED' if passed else 'FAILED'} (score: {score:.2f})"
+        return ScenarioRunResult(scenario_path, passed, msg, score, run_result)
+
+    @mcp.tool()
+    async def run_scenarios(
+        scenario_paths: list[str],
+        save_results: bool = True,
+    ) -> str:
+        """Run multiple test scenarios and return aggregated results.
+
+        Executes multiple test scenarios sequentially, providing a summary
+        of pass/fail status for each. More efficient than calling run_scenario
+        repeatedly when you need to test multiple scenarios.
+
+        Args:
+            scenario_paths: List of paths to scenario YAML files (relative to scenarios dir)
+            save_results: Whether to save results to the results directory (default: True)
+
+        Returns:
+            Aggregated summary with pass/fail counts and per-scenario results.
+        """
+        if not file_config:
+            return (
+                "Error: Cannot run scenarios without configuration. "
+                "Start the server with --config option pointing to mcprobe.yaml"
+            )
+
+        if not scenario_paths:
+            return "Error: No scenario paths provided"
+
+        results: list[ScenarioRunResult] = []
+        for scenario_path in scenario_paths:
+            result = await _execute_scenario(scenario_path, save_results)
+            results.append(result)
+
+        # Format summary
+        passed_count = sum(1 for r in results if r.passed)
+        failed_count = len(results) - passed_count
+        total = len(results)
+
+        lines = [
+            "## Test Run Summary",
+            f"**{passed_count}/{total} passed** ({failed_count} failed)",
+            "",
+            "### Results",
+        ]
+
+        for r in results:
+            icon = "✓" if r.passed else "✗"
+            lines.append(f"- {icon} `{r.path}`: {r.message}")
+
+        return "\n".join(lines)
 
     @mcp.tool()
     async def generate_report(
