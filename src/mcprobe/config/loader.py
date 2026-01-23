@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field, SecretStr
 
 from mcprobe.exceptions import ConfigurationError
 from mcprobe.models.config import LLMConfig, OrchestratorConfig
+from mcprobe.models.scenario import ScenarioLLMOverride
 
 
 @dataclass
@@ -28,6 +29,15 @@ class _ResolvedValues:
     api_key: str | None
     context_size: int | None
     reasoning: Literal["low", "medium", "high"] | None
+    extra_instructions: list[str]  # Collected from all levels, appended together
+
+
+@dataclass
+class LLMDefaults:
+    """Default values for LLM configuration resolution."""
+
+    provider: str = "ollama"
+    model: str = "llama3.2"
 
 # Pattern matches ${VAR} or ${VAR:-default}
 ENV_VAR_PATTERN = re.compile(r"\$\{([^}:-]+)(?::-([^}]*))?\}")
@@ -231,6 +241,8 @@ class ConfigLoader:
             values.context_size = source.context_size
         if source.reasoning is not None:
             values.reasoning = source.reasoning
+        if source.extra_instructions:
+            values.extra_instructions.append(source.extra_instructions)
 
     @staticmethod
     def _apply_cli_overrides(cli: CLIOverrides, values: _ResolvedValues) -> None:
@@ -249,41 +261,61 @@ class ConfigLoader:
             values.api_key = cli.api_key
 
     @staticmethod
+    def _apply_scenario_overrides(
+        scenario_override: ScenarioLLMOverride,
+        values: _ResolvedValues,
+    ) -> None:
+        """Apply scenario-level overrides (mutates values in place)."""
+        if scenario_override.model is not None:
+            values.model = scenario_override.model
+        if scenario_override.temperature is not None:
+            values.temperature = scenario_override.temperature
+        if scenario_override.extra_instructions:
+            values.extra_instructions.append(scenario_override.extra_instructions)
+
+    @staticmethod
     def resolve_llm_config(
         file_config: FileConfig | None,
         component: str,
         cli_overrides: CLIOverrides | None = None,
-        default_provider: str = "ollama",
-        default_model: str = "llama3.2",
+        scenario_override: ScenarioLLMOverride | None = None,
+        defaults: LLMDefaults | None = None,
     ) -> LLMConfig:
         """Resolve LLM configuration for a specific component.
 
         Priority order (highest to lowest):
         1. CLI arguments (via cli_overrides)
-        2. Component-specific config (judge:, synthetic_user:)
-        3. Shared LLM config (llm:)
-        4. Defaults
+        2. Scenario-level config (from scenario YAML)
+        3. Component-specific config (judge:, synthetic_user:)
+        4. Shared LLM config (llm:)
+        5. Defaults
+
+        Extra instructions are appended from all levels (not replaced).
 
         Args:
             file_config: Parsed configuration file, or None.
             component: Component name ("judge", "synthetic_user", or "llm").
             cli_overrides: CLI argument overrides, or None.
-            default_provider: Default provider if not specified.
-            default_model: Default model if not specified.
+            scenario_override: Per-scenario LLM overrides, or None.
+            defaults: Default provider and model values.
 
         Returns:
             Resolved LLMConfig for the component.
         """
+        if defaults is None:
+            defaults = LLMDefaults()
+
         # Start with defaults
         values = _ResolvedValues(
-            provider=default_provider,
-            model=default_model,
+            provider=defaults.provider,
+            model=defaults.model,
             temperature=0.0,
             max_tokens=4096,
             base_url=None,
             api_key=None,
             context_size=None,
             reasoning=None,
+            extra_instructions=[],
         )
 
         # Apply shared llm config
@@ -297,9 +329,18 @@ class ConfigLoader:
         if component_config:
             ConfigLoader._apply_llm_config(component_config, values)
 
+        # Apply scenario-level overrides
+        if scenario_override:
+            ConfigLoader._apply_scenario_overrides(scenario_override, values)
+
         # Apply CLI overrides (highest priority)
         if cli_overrides:
             ConfigLoader._apply_cli_overrides(cli_overrides, values)
+
+        # Combine all extra_instructions with newlines
+        combined_instructions = (
+            "\n\n".join(values.extra_instructions) if values.extra_instructions else None
+        )
 
         return LLMConfig(
             provider=values.provider,
@@ -310,6 +351,7 @@ class ConfigLoader:
             api_key=SecretStr(values.api_key) if values.api_key else None,
             context_size=values.context_size,
             reasoning=values.reasoning,
+            extra_instructions=combined_instructions,
         )
 
     @staticmethod

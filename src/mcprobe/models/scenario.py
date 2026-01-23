@@ -91,6 +91,24 @@ class EvaluationConfig(BaseModel):
     efficiency: EfficiencyConfig = Field(default_factory=EfficiencyConfig)
 
 
+class ScenarioLLMOverride(BaseModel):
+    """Per-scenario LLM configuration overrides.
+
+    All fields are optional - only set values will override global config.
+    """
+
+    model: str | None = None
+    temperature: float | None = None
+    extra_instructions: str | None = None
+
+
+class ScenarioConfig(BaseModel):
+    """Optional per-scenario configuration overrides."""
+
+    judge: ScenarioLLMOverride | None = None
+    synthetic_user: ScenarioLLMOverride | None = None
+
+
 class TestScenario(BaseModel):
     """Complete test scenario definition."""
 
@@ -99,6 +117,7 @@ class TestScenario(BaseModel):
     synthetic_user: SyntheticUserConfig
     evaluation: EvaluationConfig
     tags: list[str] = Field(default_factory=list)
+    config: ScenarioConfig | None = None  # Optional per-scenario overrides
 
     @field_validator("name")
     @classmethod

@@ -68,13 +68,19 @@ class ConversationJudge:
     according to the test scenario's evaluation criteria.
     """
 
-    def __init__(self, provider: LLMProvider) -> None:
+    def __init__(
+        self,
+        provider: LLMProvider,
+        extra_instructions: str | None = None,
+    ) -> None:
         """Initialize the conversation judge.
 
         Args:
             provider: LLM provider to use for evaluation.
+            extra_instructions: Additional instructions to append to judge prompts.
         """
         self._provider = provider
+        self._extra_instructions = extra_instructions
 
     async def evaluate(
         self,
@@ -93,7 +99,7 @@ class ConversationJudge:
         Raises:
             JudgmentError: If evaluation fails.
         """
-        prompt = build_judge_prompt(scenario, result)
+        prompt = build_judge_prompt(scenario, result, self._extra_instructions)
 
         try:
             evaluation = await self._provider.generate_structured(
@@ -222,7 +228,7 @@ class ConversationJudge:
         Raises:
             JudgmentError: If evaluation fails.
         """
-        prompt = build_criteria_check_prompt(scenario, turns)
+        prompt = build_criteria_check_prompt(scenario, turns, self._extra_instructions)
 
         try:
             result = await self._provider.generate_structured(

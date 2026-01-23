@@ -239,12 +239,14 @@ CRITERIA_CHECK_RESULT_TRUNCATE_LEN = 500
 def build_criteria_check_prompt(
     scenario: TestScenario,
     turns: list[ConversationTurn],
+    extra_instructions: str | None = None,
 ) -> str:
     """Build the prompt for checking criteria mid-conversation.
 
     Args:
         scenario: Test scenario with evaluation criteria.
         turns: Conversation turns so far.
+        extra_instructions: Additional instructions to append to the prompt.
 
     Returns:
         Formatted criteria check prompt string.
@@ -254,7 +256,7 @@ def build_criteria_check_prompt(
 
     # Use truncated tool results for mid-conversation checks
     # The assistant's response text contains the relevant info for criteria
-    return CRITERIA_CHECK_PROMPT.format(
+    prompt = CRITERIA_CHECK_PROMPT.format(
         user_persona=user_config.persona,
         initial_query=user_config.initial_query,
         correctness_criteria=format_criteria_list(evaluation.correctness_criteria),
@@ -263,16 +265,23 @@ def build_criteria_check_prompt(
         ),
     )
 
+    if extra_instructions:
+        prompt += f"\n\n## Additional Instructions\n{extra_instructions}"
+
+    return prompt
+
 
 def build_judge_prompt(
     scenario: TestScenario,
     result: ConversationResult,
+    extra_instructions: str | None = None,
 ) -> str:
     """Build the evaluation prompt for the judge.
 
     Args:
         scenario: Test scenario with evaluation criteria.
         result: Conversation result to evaluate.
+        extra_instructions: Additional instructions to append to the prompt.
 
     Returns:
         Formatted judge prompt string.
@@ -288,7 +297,7 @@ def build_judge_prompt(
     max_tool_calls = evaluation.efficiency.max_tool_calls or "No limit"
     max_turns = evaluation.efficiency.max_conversation_turns or "No limit"
 
-    return JUDGE_EVALUATION_PROMPT.format(
+    prompt = JUDGE_EVALUATION_PROMPT.format(
         scenario_description=scenario.description,
         user_persona=user_config.persona,
         initial_query=user_config.initial_query,
@@ -302,3 +311,8 @@ def build_judge_prompt(
         max_tool_calls=max_tool_calls,
         max_turns=max_turns,
     )
+
+    if extra_instructions:
+        prompt += f"\n\n## Additional Instructions\n{extra_instructions}"
+
+    return prompt

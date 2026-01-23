@@ -91,11 +91,15 @@ PATIENCE_THRESHOLDS = {
 }
 
 
-def build_synthetic_user_prompt(config: SyntheticUserConfig) -> str:
+def build_synthetic_user_prompt(
+    config: SyntheticUserConfig,
+    extra_instructions: str | None = None,
+) -> str:
     """Build the system prompt for the synthetic user.
 
     Args:
         config: Synthetic user configuration from the scenario.
+        extra_instructions: Additional instructions to append to the prompt.
 
     Returns:
         Formatted system prompt string.
@@ -110,7 +114,7 @@ def build_synthetic_user_prompt(config: SyntheticUserConfig) -> str:
 
     patience_threshold = PATIENCE_THRESHOLDS.get(traits.patience.value, 3)
 
-    return SYNTHETIC_USER_SYSTEM_PROMPT.format(
+    prompt = SYNTHETIC_USER_SYSTEM_PROMPT.format(
         persona=config.persona,
         initial_query=config.initial_query,
         known_facts=known_facts_str,
@@ -120,3 +124,8 @@ def build_synthetic_user_prompt(config: SyntheticUserConfig) -> str:
         verbosity=traits.verbosity.value,
         expertise=traits.expertise.value,
     )
+
+    if extra_instructions:
+        prompt += f"\n\n## Additional Instructions\n{extra_instructions}"
+
+    return prompt
