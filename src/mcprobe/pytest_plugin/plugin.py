@@ -159,12 +159,25 @@ class MCProbeItem(pytest.Item):
             cli_agent_factory=config.cli_agent_factory,
         )
 
-        # Resolve LLM configs for each component
+        # Extract scenario-level overrides if present
+        scenario_judge_override = None
+        scenario_user_override = None
+        if self.scenario.config:
+            scenario_judge_override = self.scenario.config.judge
+            scenario_user_override = self.scenario.config.synthetic_user
+
+        # Resolve LLM configs for each component (with scenario overrides)
         judge_config = ConfigLoader.resolve_llm_config(
-            config.file_config, "judge", config.cli_overrides
+            config.file_config,
+            "judge",
+            config.cli_overrides,
+            scenario_override=scenario_judge_override,
         )
         synthetic_user_config = ConfigLoader.resolve_llm_config(
-            config.file_config, "synthetic_user", config.cli_overrides
+            config.file_config,
+            "synthetic_user",
+            config.cli_overrides,
+            scenario_override=scenario_user_override,
         )
 
         # Create providers for each component
@@ -204,9 +217,16 @@ class MCProbeItem(pytest.Item):
         # Reset agent for new scenario
         await agent.reset()
 
-        # Create components
-        synthetic_user = SyntheticUserLLM(synthetic_user_provider, self.scenario.synthetic_user)
-        judge = ConversationJudge(judge_provider)
+        # Create components (with extra_instructions from resolved configs)
+        synthetic_user = SyntheticUserLLM(
+            synthetic_user_provider,
+            self.scenario.synthetic_user,
+            extra_instructions=synthetic_user_config.extra_instructions,
+        )
+        judge = ConversationJudge(
+            judge_provider,
+            extra_instructions=judge_config.extra_instructions,
+        )
         orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
 
         # Run the scenario

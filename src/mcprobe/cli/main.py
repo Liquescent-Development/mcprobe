@@ -290,25 +290,29 @@ async def _run_scenarios(config: RunConfig) -> None:
     console.print(f"[blue]Found {len(scenarios)} scenario(s)[/blue]")
     console.print(f"[blue]Agent type: {agent_config.type}[/blue]\n")
 
-    # Resolve LLM config for synthetic user and judge (they share the same config)
+    # CLI overrides for LLM config
     cli_overrides = CLIOverrides(
         provider=config.provider,
         model=config.model,
         base_url=config.base_url,
     )
-    llm_config = ConfigLoader.resolve_llm_config(
+
+    # Resolve base LLM config for display and agent creation
+    base_llm_config = ConfigLoader.resolve_llm_config(
         config.file_config,
         "synthetic_user",
         cli_overrides,
     )
 
-    console.print(f"[blue]Provider: {llm_config.provider}, Model: {llm_config.model}[/blue]\n")
+    console.print(
+        f"[blue]Provider: {base_llm_config.provider}, Model: {base_llm_config.model}[/blue]\n"
+    )
 
-    # Create provider for synthetic user and judge
-    provider = create_provider(llm_config)
+    # Create base provider for agent
+    base_provider = create_provider(base_llm_config)
 
     # Create agent based on type
-    agent = _create_agent(agent_config, provider)
+    agent = _create_agent(agent_config, base_provider)
 
     # Track results
     results: list[tuple[str, bool, float]] = []
@@ -319,9 +323,41 @@ async def _run_scenarios(config: RunConfig) -> None:
         # Reset agent for new scenario
         await agent.reset()
 
+        # Extract scenario-level overrides if present
+        scenario_judge_override = None
+        scenario_user_override = None
+        if scenario.config:
+            scenario_judge_override = scenario.config.judge
+            scenario_user_override = scenario.config.synthetic_user
+
+        # Resolve per-scenario LLM configs
+        judge_config = ConfigLoader.resolve_llm_config(
+            config.file_config,
+            "judge",
+            cli_overrides,
+            scenario_override=scenario_judge_override,
+        )
+        synthetic_user_config = ConfigLoader.resolve_llm_config(
+            config.file_config,
+            "synthetic_user",
+            cli_overrides,
+            scenario_override=scenario_user_override,
+        )
+
+        # Create providers for this scenario
+        judge_provider = create_provider(judge_config)
+        synthetic_user_provider = create_provider(synthetic_user_config)
+
         # Create components for this scenario
-        synthetic_user = SyntheticUserLLM(provider, scenario.synthetic_user)
-        judge = ConversationJudge(provider)
+        synthetic_user = SyntheticUserLLM(
+            synthetic_user_provider,
+            scenario.synthetic_user,
+            extra_instructions=synthetic_user_config.extra_instructions,
+        )
+        judge = ConversationJudge(
+            judge_provider,
+            extra_instructions=judge_config.extra_instructions,
+        )
         orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
 
         with Progress(

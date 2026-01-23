@@ -30,6 +30,8 @@ class LLMConfig(BaseModel):
     context_size: int | None = Field(default=None, ge=1024)
     # Reasoning/thinking effort level (maps to provider-specific options)
     reasoning: Literal["low", "medium", "high"] | None = None
+    # Extra instructions to append to the system prompt (for judge/synthetic_user)
+    extra_instructions: str | None = None
 
 
 class OrchestratorConfig(BaseModel):

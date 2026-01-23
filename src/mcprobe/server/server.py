@@ -583,19 +583,44 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
         except Exception as e:
             return f"Error parsing scenario: {e}"
 
-        llm_config = ConfigLoader.resolve_llm_config(file_config, "synthetic_user")
+        # Extract scenario-level overrides if present
+        scenario_judge_override = None
+        scenario_user_override = None
+        if scenario.config:
+            scenario_judge_override = scenario.config.judge
+            scenario_user_override = scenario.config.synthetic_user
+
+        # Resolve separate LLM configs for each component
+        judge_config = ConfigLoader.resolve_llm_config(
+            file_config,
+            "judge",
+            scenario_override=scenario_judge_override,
+        )
+        synthetic_user_config = ConfigLoader.resolve_llm_config(
+            file_config,
+            "synthetic_user",
+            scenario_override=scenario_user_override,
+        )
         agent_config = ConfigLoader.resolve_agent_config(file_config)
 
         # Create and run with proper cleanup
         try:
-            provider = create_provider(llm_config)
-            agent_or_error = _create_agent_from_config(agent_config, provider)
+            judge_provider = create_provider(judge_config)
+            synthetic_user_provider = create_provider(synthetic_user_config)
+            agent_or_error = _create_agent_from_config(agent_config, synthetic_user_provider)
             if isinstance(agent_or_error, str):
                 return agent_or_error
             agent = agent_or_error
 
-            synthetic_user = SyntheticUserLLM(provider, scenario.synthetic_user)
-            judge = ConversationJudge(provider)
+            synthetic_user = SyntheticUserLLM(
+                synthetic_user_provider,
+                scenario.synthetic_user,
+                extra_instructions=synthetic_user_config.extra_instructions,
+            )
+            judge = ConversationJudge(
+                judge_provider,
+                extra_instructions=judge_config.extra_instructions,
+            )
             orchestrator = ConversationOrchestrator(agent, synthetic_user, judge)
 
             conversation_result, judgment_result = await orchestrator.run(scenario)
@@ -618,7 +643,7 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
             scenario=scenario,
             scenario_file=full_path,
             results=(conversation_result, judgment_result),
-            config=(agent_config.type, llm_config.model),
+            config=(agent_config.type, judge_config.model),
             agent_config=(system_prompt, tool_schemas),
         )
 

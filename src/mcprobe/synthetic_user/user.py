@@ -21,16 +21,18 @@ class SyntheticUserLLM:
         self,
         provider: LLMProvider,
         config: SyntheticUserConfig,
+        extra_instructions: str | None = None,
     ) -> None:
         """Initialize the synthetic user.
 
         Args:
             provider: LLM provider to use for generating responses.
             config: Synthetic user configuration from the test scenario.
+            extra_instructions: Additional instructions to append to the system prompt.
         """
         self._provider = provider
         self._config = config
-        self._system_prompt = build_synthetic_user_prompt(config)
+        self._system_prompt = build_synthetic_user_prompt(config, extra_instructions)
         self._conversation_history: list[Message] = [
             Message(role="system", content=self._system_prompt)
         ]
