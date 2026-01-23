@@ -58,6 +58,8 @@ class GeminiADKAgent(AgentUnderTest):
     ) -> list[ToolCall]:
         """Process function responses and create ToolCall objects."""
         tool_calls: list[ToolCall] = []
+        response_time = time.time()
+
         for fr in function_responses:
             call_id = fr.id or fr.name or "unknown"
             if call_id in pending_calls:
@@ -66,12 +68,14 @@ class GeminiADKAgent(AgentUnderTest):
                 # Response without matching call - use response info
                 name = fr.name or "unknown"
                 params = {}
-                start = time.time()
+                start = response_time
 
             tool_calls.append(
                 ToolCall(
                     tool_name=name,
                     parameters=params,
+                    called_at=start,
+                    responded_at=response_time,
                     result=fr.response,
                     latency_ms=(time.time() - start) * 1000,
                 )
@@ -138,13 +142,16 @@ class GeminiADKAgent(AgentUnderTest):
 
             # Handle any calls that never got responses
             for _id, (name, params, start) in pending_calls.items():
+                now = time.time()
                 tool_calls.append(
                     ToolCall(
                         tool_name=name,
                         parameters=params,
                         result=None,
                         error="No response received",
-                        latency_ms=(time.time() - start) * 1000,
+                        latency_ms=(now - start) * 1000,
+                        called_at=start,
+                        responded_at=None,  # Never responded
                     )
                 )
         except Exception as e:
