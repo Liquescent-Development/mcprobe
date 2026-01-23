@@ -10,7 +10,7 @@ This document provides a complete reference for the MCProbe test scenario YAML f
 
 ## Schema Overview
 
-A test scenario consists of five top-level sections:
+A test scenario consists of six top-level sections:
 
 ```yaml
 name: string                    # Required: Scenario identifier
@@ -18,6 +18,7 @@ description: string             # Required: What this scenario tests
 synthetic_user: {...}           # Required: User simulation config
 evaluation: {...}               # Required: Success/failure criteria
 tags: [...]                     # Optional: Classification tags
+config: {...}                   # Optional: Per-scenario LLM overrides
 ```
 
 ## Complete Schema Reference
@@ -62,6 +63,112 @@ tags: [...]                     # Optional: Classification tags
 - **Default:** `[]`
 - **Description:** Tags for organizing and filtering scenarios
 - **Example:** `["weather", "clarification", "basic"]`
+
+#### `config`
+- **Type:** `ScenarioConfig` object
+- **Required:** No
+- **Default:** `null`
+- **Description:** Per-scenario LLM configuration overrides for judge and synthetic user
+- **See:** [Per-Scenario Configuration](#per-scenario-configuration) section below
+
+### Per-Scenario Configuration
+
+The `config` section allows you to override LLM settings for specific scenarios without changing your global `mcprobe.yaml` configuration. This is useful for:
+
+- Using a stricter/more lenient judge for specific test cases
+- Customizing synthetic user behavior per scenario
+- Testing with different models for specific scenarios
+
+#### ScenarioConfig Fields
+
+##### `config.judge`
+- **Type:** `ScenarioLLMOverride` object
+- **Required:** No
+- **Description:** Overrides for the judge LLM configuration
+
+##### `config.synthetic_user`
+- **Type:** `ScenarioLLMOverride` object
+- **Required:** No
+- **Description:** Overrides for the synthetic user LLM configuration
+
+#### ScenarioLLMOverride Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `model` | `string \| null` | Override the model for this scenario |
+| `temperature` | `float \| null` | Override the temperature for this scenario |
+| `extra_instructions` | `string \| null` | Additional instructions appended to system prompts |
+
+**Note:** Only specified fields are overridden. Unspecified fields inherit from global config.
+
+#### Per-Scenario Configuration Examples
+
+**Custom judge instructions for strict validation:**
+```yaml
+name: Strict Tool Parameter Test
+description: Verifies exact parameter matching
+
+config:
+  judge:
+    extra_instructions: |
+      Be extremely strict about tool parameter validation.
+      Any parameter that doesn't match exactly should fail the test.
+      Do not accept approximate or "close enough" values.
+
+synthetic_user:
+  persona: A precise user who expects exact results
+  initial_query: Get the weather for latitude 37.7749, longitude -122.4194
+
+evaluation:
+  correctness_criteria:
+    - The agent calls get_weather with exact coordinates provided
+```
+
+**Different model for complex scenario:**
+```yaml
+name: Complex Multi-Step Reasoning
+description: Tests multi-step problem solving
+
+config:
+  judge:
+    model: gpt-4o  # Use more capable model for complex evaluation
+  synthetic_user:
+    model: gpt-4o-mini
+    temperature: 0.5  # Slightly more varied responses
+
+synthetic_user:
+  persona: A user with a complex, multi-part question
+  initial_query: I need to plan a trip considering weather, flights, and hotels
+
+evaluation:
+  correctness_criteria:
+    - The agent addresses all three aspects of the query
+```
+
+**Customizing synthetic user behavior:**
+```yaml
+name: Impatient User Test
+description: Tests agent response to impatient users
+
+config:
+  synthetic_user:
+    extra_instructions: |
+      You are in a hurry. Express frustration if the agent asks
+      more than one clarifying question. Use short, curt responses.
+
+synthetic_user:
+  persona: A busy executive with no time to spare
+  initial_query: Weather now!
+  clarification_behavior:
+    traits:
+      patience: low
+      verbosity: concise
+
+evaluation:
+  correctness_criteria:
+    - The agent provides weather information quickly
+    - The agent minimizes clarifying questions
+```
 
 ### SyntheticUserConfig Fields
 
@@ -270,6 +377,15 @@ description: |
   Tests the agent's ability to handle a weather query with missing information,
   ask appropriate clarifying questions, and provide accurate results with
   proper error handling.
+
+# Optional: Per-scenario LLM configuration overrides
+config:
+  judge:
+    extra_instructions: |
+      Pay special attention to whether the agent correctly interprets
+      "tomorrow" as the next calendar day, not "in 24 hours".
+  synthetic_user:
+    temperature: 0.2  # Slightly varied responses
 
 synthetic_user:
   persona: |
