@@ -272,6 +272,7 @@ Configuration for an LLM provider used by the agent, synthetic user, or judge.
 | `base_url` | `str \| None` | No | `None` | Base URL for API endpoint (optional, provider-specific) |
 | `context_size` | `int \| None` | No | `None` | Context window size in tokens (mainly for Ollama, which defaults to only 2048) |
 | `reasoning` | `"low" \| "medium" \| "high" \| None` | No | `None` | Reasoning/thinking effort level for models that support it |
+| `extra_instructions` | `str \| None` | No | `None` | Additional instructions appended to system prompts (judge or synthetic_user) |
 
 ### Validation Rules
 
@@ -281,6 +282,56 @@ Configuration for an LLM provider used by the agent, synthetic user, or judge.
 - `max_tokens`: Must be at least 1
 - `api_key`: Stored as SecretStr for security (won't be logged or printed)
 - `context_size`: Must be at least 1024 if specified
+
+### Extra Instructions
+
+The `extra_instructions` field allows you to append custom instructions to the system prompts used by the judge and synthetic user. This is useful for:
+
+- Adding domain-specific evaluation criteria to the judge
+- Customizing synthetic user behavior for specific test scenarios
+- Fine-tuning evaluation strictness
+
+**Important:** Extra instructions are **appended** (not replaced) across all configuration levels. Instructions from multiple sources are concatenated with newlines.
+
+**Configuration priority for extra_instructions:**
+1. CLI arguments (highest)
+2. Per-scenario config (in scenario YAML)
+3. Component-specific config (`judge:` or `synthetic_user:` sections)
+4. Shared config (`llm:` section)
+
+**Example - Strict judge instructions:**
+```yaml
+# mcprobe.yaml
+judge:
+  provider: ollama
+  model: llama3.2
+  extra_instructions: |
+    Be strict about tool parameter validation.
+    Any missing or incorrect parameters should result in failure.
+    Do not accept approximate answers - require exact matches.
+```
+
+**Example - Custom synthetic user behavior:**
+```yaml
+# mcprobe.yaml
+synthetic_user:
+  provider: ollama
+  model: llama3.2
+  extra_instructions: |
+    Always express urgency in your requests.
+    If the agent asks more than 2 clarifying questions, show impatience.
+```
+
+**Example - Per-scenario override (in scenario YAML):**
+```yaml
+# scenario.yaml
+name: Strict Parameter Validation Test
+config:
+  judge:
+    extra_instructions: |
+      For this test, verify that ALL tool parameters match exactly.
+      This is a strict validation scenario.
+```
 
 ### Supported Providers
 
