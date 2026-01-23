@@ -256,8 +256,8 @@ def _build_test_result(
     scenario: "TestScenario",
     scenario_file: Path,
     results: tuple["ConversationResult", "JudgmentResult"],
-    config: tuple[str, str],  # (agent_type, llm_model)
-    agent_config: tuple[str | None, list[dict[str, Any]]],  # (system_prompt, tool_schemas)
+    models: tuple[str, str, str | None],  # (judge_model, synthetic_user_model, agent_model)
+    agent_info: tuple[str, str | None, list[dict[str, Any]]],  # (type, system_prompt, schemas)
 ) -> TestRunResult:
     """Build a TestRunResult from scenario execution results."""
     import platform  # noqa: PLC0415
@@ -267,8 +267,8 @@ def _build_test_result(
     import mcprobe  # noqa: PLC0415
 
     conversation_result, judgment_result = results
-    agent_type, llm_model = config
-    system_prompt, tool_schemas = agent_config
+    judge_model, synthetic_user_model, agent_model = models
+    agent_type, system_prompt, tool_schemas = agent_info
 
     return TestRunResult(
         run_id=str(uuid.uuid4()),
@@ -279,9 +279,9 @@ def _build_test_result(
         conversation_result=conversation_result,
         judgment_result=judgment_result,
         agent_type=agent_type,
-        judge_model=llm_model,
-        synthetic_user_model=llm_model,
-        agent_model=llm_model,
+        judge_model=judge_model,
+        synthetic_user_model=synthetic_user_model,
+        agent_model=agent_model,
         duration_seconds=conversation_result.duration_seconds,
         mcprobe_version=mcprobe.__version__,
         python_version=platform.python_version(),
@@ -292,10 +292,49 @@ def _build_test_result(
     )
 
 
+def _resolve_scenario_configs(
+    file_config: "FileConfig",
+    scenario: "TestScenario",
+) -> tuple["LLMConfig", "LLMConfig", "AgentConfig"]:
+    """Resolve LLM and agent configs with scenario overrides.
+
+    Args:
+        file_config: Global configuration from mcprobe.yaml.
+        scenario: Test scenario with optional config overrides.
+
+    Returns:
+        Tuple of (judge_config, synthetic_user_config, agent_config).
+    """
+    from mcprobe.config import ConfigLoader  # noqa: PLC0415
+
+    # Extract scenario-level overrides if present
+    scenario_judge_override = None
+    scenario_user_override = None
+    if scenario.config:
+        scenario_judge_override = scenario.config.judge
+        scenario_user_override = scenario.config.synthetic_user
+
+    # Resolve separate LLM configs for each component
+    judge_config = ConfigLoader.resolve_llm_config(
+        file_config,
+        "judge",
+        scenario_override=scenario_judge_override,
+    )
+    synthetic_user_config = ConfigLoader.resolve_llm_config(
+        file_config,
+        "synthetic_user",
+        scenario_override=scenario_user_override,
+    )
+    agent_config = ConfigLoader.resolve_agent_config(file_config)
+
+    return judge_config, synthetic_user_config, agent_config
+
+
 # Type hints for lazy imports (TYPE_CHECKING pattern)
 if False:
     from mcprobe.agents.base import AgentUnderTest
-    from mcprobe.config import AgentConfig
+    from mcprobe.config import AgentConfig, FileConfig
+    from mcprobe.models.config import LLMConfig
     from mcprobe.models.conversation import ConversationResult
     from mcprobe.models.judgment import JudgmentResult
     from mcprobe.models.scenario import TestScenario
@@ -583,25 +622,10 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
         except Exception as e:
             return f"Error parsing scenario: {e}"
 
-        # Extract scenario-level overrides if present
-        scenario_judge_override = None
-        scenario_user_override = None
-        if scenario.config:
-            scenario_judge_override = scenario.config.judge
-            scenario_user_override = scenario.config.synthetic_user
-
-        # Resolve separate LLM configs for each component
-        judge_config = ConfigLoader.resolve_llm_config(
-            file_config,
-            "judge",
-            scenario_override=scenario_judge_override,
+        # Resolve configs with scenario overrides
+        judge_config, synthetic_user_config, agent_config = _resolve_scenario_configs(
+            file_config, scenario
         )
-        synthetic_user_config = ConfigLoader.resolve_llm_config(
-            file_config,
-            "synthetic_user",
-            scenario_override=scenario_user_override,
-        )
-        agent_config = ConfigLoader.resolve_agent_config(file_config)
 
         # Create and run with proper cleanup
         try:
@@ -627,6 +651,7 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
 
             # Capture agent configuration before closing
             system_prompt = agent.get_system_prompt()
+            agent_model = agent.get_model_name()
             tool_schemas = await _extract_tool_schemas(file_config, agent)
         except Exception as e:
             logger.exception("Error running scenario")
@@ -643,8 +668,8 @@ def create_server(  # noqa: PLR0915 - Server factory with inline tool definition
             scenario=scenario,
             scenario_file=full_path,
             results=(conversation_result, judgment_result),
-            config=(agent_config.type, judge_config.model),
-            agent_config=(system_prompt, tool_schemas),
+            models=(judge_config.model, synthetic_user_config.model, agent_model),
+            agent_info=(agent_config.type, system_prompt, tool_schemas),
         )
 
         if save_results:
