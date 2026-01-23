@@ -17,6 +17,8 @@ class ToolCall(BaseModel):
     result: Any
     latency_ms: float
     error: str | None = None
+    called_at: float | None = None  # Epoch time when tool was called
+    responded_at: float | None = None  # Epoch time when tool responded
 
 
 class AgentResponse(BaseModel):

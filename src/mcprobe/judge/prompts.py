@@ -140,11 +140,24 @@ Do NOT paraphrase, shorten, or modify the criterion text in any way.
 """
 
 
+def _format_timestamp(ts: float | None) -> str:
+    """Format epoch timestamp as readable time."""
+    if ts is None:
+        return "N/A"
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    dt = datetime.fromtimestamp(ts, tz=UTC)
+    return dt.strftime("%H:%M:%S.%f")[:-3]  # HH:MM:SS.mmm
+
+
 def format_conversation_transcript(
     turns: list[ConversationTurn],
     truncate_results: int | None = None,
 ) -> str:
     """Format conversation turns into a readable transcript.
+
+    For assistant turns with tool calls, shows tool calls with timestamps
+    BEFORE the response text to accurately reflect execution order.
 
     Args:
         turns: List of conversation turns.
@@ -159,17 +172,29 @@ def format_conversation_transcript(
     lines: list[str] = []
     for turn in turns:
         role = turn.role.upper()
-        lines.append(f"[{role}]: {turn.content}")
-        if turn.tool_calls:
+        turn_time = _format_timestamp(turn.timestamp)
+
+        if turn.role == "assistant" and turn.tool_calls:
+            # Show tool calls first with timestamps, then response
+            lines.append(f"[{role}] @ {turn_time}:")
             for tc in turn.tool_calls:
-                lines.append(f"  -> Tool call: {tc.tool_name}({tc.parameters})")
+                called = _format_timestamp(tc.called_at)
+                responded = _format_timestamp(tc.responded_at)
+                lines.append(
+                    f"  -> Tool called @ {called}: {tc.tool_name}({tc.parameters})"
+                )
                 if tc.error:
-                    lines.append(f"     Error: {tc.error}")
+                    lines.append(f"     Error @ {responded}: {tc.error}")
                 else:
                     result_str = str(tc.result)
                     if truncate_results and len(result_str) > truncate_results:
                         result_str = result_str[:truncate_results] + "... [truncated]"
-                    lines.append(f"     Result: {result_str}")
+                    lines.append(f"     Result @ {responded}: {result_str}")
+            lines.append(f"  Response: {turn.content}")
+        else:
+            # User turns or assistant turns without tool calls
+            lines.append(f"[{role}] @ {turn_time}: {turn.content}")
+
     return "\n".join(lines)
 
 
