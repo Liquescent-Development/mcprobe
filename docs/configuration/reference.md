@@ -290,6 +290,7 @@ The `extra_instructions` field allows you to append custom instructions to the s
 - Adding domain-specific evaluation criteria to the judge
 - Customizing synthetic user behavior for specific test scenarios
 - Fine-tuning evaluation strictness
+- Setting project-wide guidelines that apply to all test runs
 
 **Important:** Extra instructions are **appended** (not replaced) across all configuration levels. Instructions from multiple sources are concatenated with newlines.
 
@@ -297,30 +298,43 @@ The `extra_instructions` field allows you to append custom instructions to the s
 1. CLI arguments (highest)
 2. Per-scenario config (in scenario YAML)
 3. Component-specific config (`judge:` or `synthetic_user:` sections)
-4. Shared config (`llm:` section)
+4. Shared config (`llm:` section) - applies to both judge and synthetic_user
 
-**Example - Strict judge instructions:**
+**Example - Project-wide instructions (shared config):**
 ```yaml
 # mcprobe.yaml
-judge:
+llm:
   provider: ollama
   model: llama3.2
   extra_instructions: |
-    Be strict about tool parameter validation.
-    Any missing or incorrect parameters should result in failure.
-    Do not accept approximate answers - require exact matches.
+    This project tests a financial data API.
+    All monetary values should be validated for correct currency formatting.
+    Be strict about decimal precision in financial calculations.
 ```
 
-**Example - Custom synthetic user behavior:**
+This applies to both the judge and synthetic user across all scenarios.
+
+**Example - Component-specific instructions:**
 ```yaml
 # mcprobe.yaml
-synthetic_user:
+llm:
   provider: ollama
   model: llama3.2
+  extra_instructions: |
+    Project-wide: All responses should be evaluated for accuracy.
+
+judge:
+  extra_instructions: |
+    Be strict about tool parameter validation.
+    Any missing or incorrect parameters should result in failure.
+
+synthetic_user:
   extra_instructions: |
     Always express urgency in your requests.
     If the agent asks more than 2 clarifying questions, show impatience.
 ```
+
+In this example, the judge receives both the project-wide and judge-specific instructions concatenated together.
 
 **Example - Per-scenario override (in scenario YAML):**
 ```yaml
@@ -332,6 +346,8 @@ config:
       For this test, verify that ALL tool parameters match exactly.
       This is a strict validation scenario.
 ```
+
+This adds to any instructions already set in mcprobe.yaml.
 
 ### Supported Providers
 
