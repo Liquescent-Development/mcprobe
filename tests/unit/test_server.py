@@ -412,6 +412,76 @@ llm:
         assert "not found" in result.lower()
 
 
+class TestRunScenarios:
+    """Tests for run_scenarios tool."""
+
+    async def test_run_scenarios_requires_config(
+        self,
+        temp_results_dir: Path,
+        temp_scenarios_dir: Path,
+    ) -> None:
+        """Test that run_scenarios requires config file."""
+        server = create_server(temp_results_dir, temp_scenarios_dir)
+        tools = server._tool_manager._tools
+        run_scenarios_tool = tools["run_scenarios"]
+
+        result = await run_scenarios_tool.fn(scenario_paths=["test.yaml"])
+
+        assert "error" in result.lower()
+        assert "configuration" in result.lower()
+
+    async def test_run_scenarios_handles_empty_list(
+        self,
+        temp_results_dir: Path,
+        temp_scenarios_dir: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Test that run_scenarios handles empty scenario list."""
+        config_file = tmp_path / "mcprobe.yaml"
+        config_file.write_text("""
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+""")
+
+        server = create_server(temp_results_dir, temp_scenarios_dir, config_file)
+        tools = server._tool_manager._tools
+        run_scenarios_tool = tools["run_scenarios"]
+
+        result = await run_scenarios_tool.fn(scenario_paths=[])
+
+        assert "error" in result.lower()
+        assert "no scenario" in result.lower()
+
+    async def test_run_scenarios_handles_missing_files(
+        self,
+        temp_results_dir: Path,
+        temp_scenarios_dir: Path,
+        tmp_path: Path,
+    ) -> None:
+        """Test that run_scenarios handles missing scenario files gracefully."""
+        config_file = tmp_path / "mcprobe.yaml"
+        config_file.write_text("""
+llm:
+  provider: ollama
+  model: llama3.2
+  base_url: http://localhost:11434
+""")
+
+        server = create_server(temp_results_dir, temp_scenarios_dir, config_file)
+        tools = server._tool_manager._tools
+        run_scenarios_tool = tools["run_scenarios"]
+
+        result = await run_scenarios_tool.fn(
+            scenario_paths=["nonexistent1.yaml", "nonexistent2.yaml"]
+        )
+
+        # Should report failures but complete
+        assert "0/2 passed" in result
+        assert "file not found" in result.lower()
+
+
 class TestServerCreation:
     """Tests for server creation."""
 
@@ -446,6 +516,7 @@ class TestServerCreation:
             "get_trends",
             "get_latest",
             "run_scenario",
+            "run_scenarios",
             "generate_report",
         ]
 
