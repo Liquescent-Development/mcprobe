@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from mcprobe.models.conversation import ToolCall
     from mcprobe.persistence import TestRunResult
 
 
@@ -507,7 +508,7 @@ class HtmlReportGenerator:
                         <summary>Details</summary>
                         <div class="details-content">
                             <h4>Judge LLM Reasoning</h4>
-                            <p>{reasoning}</p>
+                            <div class="markdown-content">{reasoning}</div>
 
                             <h4>Correctness Criteria</h4>
                             {correctness_html}
@@ -515,7 +516,7 @@ class HtmlReportGenerator:
                             <h4>Conversation</h4>
                             {conversation_html}
 
-                            <h4>Tool Calls ({len(result.conversation_result.total_tool_calls)})</h4>
+                            <h4>Tool Calls</h4>
                             {tool_calls_html}
                         </div>
                     </details>
@@ -529,20 +530,13 @@ class HtmlReportGenerator:
         for turn in result.conversation_result.turns:
             role_class = "user" if turn.role == "user" else "assistant"
             content = _escape_html(turn.content)
-            # Use markdown rendering for assistant responses
-            if turn.role == "assistant":
-                turns.append(
-                    f'<div class="turn {role_class}">'
-                    f"<strong>{turn.role}:</strong>"
-                    f'<div class="markdown-content">{content}</div>'
-                    f"</div>"
-                )
-            else:
-                turns.append(
-                    f'<div class="turn {role_class}">'
-                    f"<strong>{turn.role}:</strong> {content}"
-                    f"</div>"
-                )
+            # Use markdown rendering for all turns (assistant, user/synthetic user)
+            turns.append(
+                f'<div class="turn {role_class}">'
+                f"<strong>{turn.role}:</strong>"
+                f'<div class="markdown-content">{content}</div>'
+                f"</div>"
+            )
         return '<div class="conversation">' + "\n".join(turns) + "</div>"
 
     def _build_correctness_html(self, result: TestRunResult) -> str:
@@ -558,12 +552,77 @@ class HtmlReportGenerator:
         return "<ul>" + "\n".join(items) + "</ul>" if items else "<p>No criteria</p>"
 
     def _build_tool_calls_html(self, result: TestRunResult) -> str:
-        """Build HTML for tool calls with Request/Response labels and collapsible details."""
-        if not result.conversation_result.total_tool_calls:
+        """Build HTML for tool calls categorized by required/optional/unexpected."""
+        tool_calls = result.conversation_result.total_tool_calls
+        if not tool_calls:
             return "<p>No tool calls</p>"
 
+        # Get tool categorization from judgment results
+        tool_usage = result.judgment_result.tool_usage_results
+        required_tools = set(tool_usage.get("required_tools", []))
+        optional_tools = set(tool_usage.get("optional_tools", []))
+
+        # Categorize tool calls
+        required_calls = []
+        optional_calls = []
+        unexpected_calls = []
+
+        for tc in tool_calls:
+            if tc.tool_name in required_tools:
+                required_calls.append(tc)
+            elif tc.tool_name in optional_tools:
+                optional_calls.append(tc)
+            else:
+                unexpected_calls.append(tc)
+
+        # Build HTML for each category
+        sections = []
+
+        # Required tools section
+        required_used = {tc.tool_name for tc in required_calls}
+        required_missing = required_tools - required_used
+        required_status = "pass" if not required_missing else "fail"
+        sections.append(
+            f'<div class="tool-category required {required_status}">'
+            f'<h5>Required Tools ({len(required_used)}/{len(required_tools)})</h5>'
+        )
+        if required_missing:
+            missing_list = ", ".join(sorted(required_missing))
+            sections.append(f'<p class="missing-tools">Missing: {_escape_html(missing_list)}</p>')
+        if required_calls:
+            sections.append(self._build_tool_call_items(required_calls))
+        elif not required_tools:
+            sections.append("<p>None specified</p>")
+        else:
+            sections.append("<p>None called</p>")
+        sections.append("</div>")
+
+        # Optional tools section
+        sections.append(
+            f'<div class="tool-category optional">'
+            f'<h5>Optional Tools ({len(optional_calls)})</h5>'
+        )
+        if optional_calls:
+            sections.append(self._build_tool_call_items(optional_calls))
+        else:
+            sections.append("<p>None called</p>")
+        sections.append("</div>")
+
+        # Unexpected tools section
+        if unexpected_calls:
+            sections.append(
+                f'<div class="tool-category unexpected">'
+                f'<h5>Unexpected Tools ({len(unexpected_calls)})</h5>'
+            )
+            sections.append(self._build_tool_call_items(unexpected_calls))
+            sections.append("</div>")
+
+        return "\n".join(sections)
+
+    def _build_tool_call_items(self, tool_calls: list[ToolCall]) -> str:
+        """Build HTML for a list of tool call items."""
         items = []
-        for tc in result.conversation_result.total_tool_calls:
+        for tc in tool_calls:
             # Pretty-print parameters as JSON
             params_json = json.dumps(tc.parameters, indent=2)
 
