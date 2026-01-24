@@ -7,7 +7,14 @@ from unittest.mock import patch
 import pytest
 from pydantic import SecretStr
 
-from mcprobe.config import AgentConfig, CLIOverrides, ConfigLoader, FileConfig, ResultsConfig
+from mcprobe.config import (
+    AgentConfig,
+    CLIOverrides,
+    ConfigLoader,
+    FileConfig,
+    FileLLMConfigOverride,
+    ResultsConfig,
+)
 from mcprobe.exceptions import ConfigurationError
 from mcprobe.models.config import LLMConfig, OrchestratorConfig
 
@@ -275,12 +282,13 @@ class TestResolveLLMConfig:
         """Component-specific config overrides shared llm config."""
         file_config = FileConfig(
             llm=LLMConfig(provider="openai", model="gpt-4"),
-            judge=LLMConfig(provider="openai", model="gpt-4o"),
+            judge=FileLLMConfigOverride(model="gpt-4o"),
         )
 
         result = ConfigLoader.resolve_llm_config(file_config, "judge")
 
         assert result.model == "gpt-4o"
+        assert result.provider == "openai"  # Inherited from shared llm
 
     def test_cli_overrides_file_config(self) -> None:
         """CLI arguments override file config."""
@@ -322,14 +330,14 @@ class TestResolveLLMConfig:
         """Judge and synthetic_user can have different configurations."""
         file_config = FileConfig(
             llm=LLMConfig(provider="openai", model="gpt-4"),
-            judge=LLMConfig(provider="openai", model="gpt-4o"),
-            synthetic_user=LLMConfig(provider="ollama", model="llama3.2"),
+            judge=FileLLMConfigOverride(model="gpt-4o"),
+            synthetic_user=FileLLMConfigOverride(provider="ollama", model="llama3.2"),
         )
 
         judge_config = ConfigLoader.resolve_llm_config(file_config, "judge")
         user_config = ConfigLoader.resolve_llm_config(file_config, "synthetic_user")
 
-        assert judge_config.provider == "openai"
+        assert judge_config.provider == "openai"  # Inherited from shared llm
         assert judge_config.model == "gpt-4o"
         assert user_config.provider == "ollama"
         assert user_config.model == "llama3.2"

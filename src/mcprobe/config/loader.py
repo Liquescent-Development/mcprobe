@@ -95,13 +95,32 @@ class CLIOverrides(BaseModel):
     max_tokens: int | None = None
 
 
+class FileLLMConfigOverride(BaseModel):
+    """Partial LLM config for component-specific overrides in config file.
+
+    All fields are optional - only set values will override the shared llm config.
+    This allows users to set just extra_instructions for judge/synthetic_user
+    while inheriting provider, model, etc. from the shared llm section.
+    """
+
+    provider: str | None = None
+    model: str | None = None
+    temperature: float | None = Field(default=None, ge=0.0, le=2.0)
+    max_tokens: int | None = Field(default=None, ge=1)
+    api_key: SecretStr | None = None
+    base_url: str | None = None
+    context_size: int | None = Field(default=None, ge=1024)
+    reasoning: Literal["low", "medium", "high"] | None = None
+    extra_instructions: str | None = None
+
+
 class FileConfig(BaseModel):
     """Schema for mcprobe.yaml configuration file."""
 
     agent: AgentConfig = Field(default_factory=AgentConfig)
     llm: LLMConfig | None = None
-    judge: LLMConfig | None = None
-    synthetic_user: LLMConfig | None = None
+    judge: FileLLMConfigOverride | None = None
+    synthetic_user: FileLLMConfigOverride | None = None
     orchestrator: OrchestratorConfig = Field(default_factory=OrchestratorConfig)
     results: ResultsConfig = Field(default_factory=ResultsConfig)
     mcp_server: MCPServerConfig | None = None
@@ -245,6 +264,31 @@ class ConfigLoader:
             values.extra_instructions.append(source.extra_instructions)
 
     @staticmethod
+    def _apply_file_override(source: FileLLMConfigOverride, values: _ResolvedValues) -> None:
+        """Apply values from a file config override (mutates values in place).
+
+        Only non-None values are applied, allowing partial overrides.
+        """
+        if source.provider is not None:
+            values.provider = source.provider
+        if source.model is not None:
+            values.model = source.model
+        if source.temperature is not None:
+            values.temperature = source.temperature
+        if source.max_tokens is not None:
+            values.max_tokens = source.max_tokens
+        if source.base_url is not None:
+            values.base_url = source.base_url
+        if source.api_key:
+            values.api_key = source.api_key.get_secret_value()
+        if source.context_size is not None:
+            values.context_size = source.context_size
+        if source.reasoning is not None:
+            values.reasoning = source.reasoning
+        if source.extra_instructions:
+            values.extra_instructions.append(source.extra_instructions)
+
+    @staticmethod
     def _apply_cli_overrides(cli: CLIOverrides, values: _ResolvedValues) -> None:
         """Apply CLI overrides to configuration values (mutates values in place)."""
         if cli.provider is not None:
@@ -322,12 +366,12 @@ class ConfigLoader:
         if file_config and file_config.llm:
             ConfigLoader._apply_llm_config(file_config.llm, values)
 
-        # Apply component-specific config
-        component_config: LLMConfig | None = None
+        # Apply component-specific config (partial overrides)
+        component_config: FileLLMConfigOverride | None = None
         if file_config:
             component_config = getattr(file_config, component, None)
         if component_config:
-            ConfigLoader._apply_llm_config(component_config, values)
+            ConfigLoader._apply_file_override(component_config, values)
 
         # Apply scenario-level overrides
         if scenario_override:
