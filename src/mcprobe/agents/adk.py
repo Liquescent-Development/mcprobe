@@ -134,8 +134,9 @@ class GeminiADKAgent(AgentUnderTest):
                         self._process_function_responses(responses, pending_calls)
                     )
 
-                # Get final response text
-                if event.is_final_response() and event.content and event.content.parts:
+                # Capture text from any event with text content
+                # (not just final response - text may come in earlier events when tools are used)
+                if event.content and event.content.parts:
                     for part in event.content.parts:
                         if hasattr(part, "text") and part.text:
                             response_text += part.text
