@@ -129,3 +129,39 @@ class TestSyntheticUserTokenTracking:
         response = await user.respond("Hello")
 
         assert response.tokens_used == 0
+
+    @pytest.mark.asyncio
+    async def test_empty_agent_response_asks_for_retry(
+        self,
+        mock_provider: LLMProvider,
+        user_config: SyntheticUserConfig,
+    ) -> None:
+        """Test that empty agent responses result in clarification request."""
+        user = SyntheticUserLLM(mock_provider, user_config)
+
+        # Agent sends empty response
+        response = await user.respond("")
+
+        # Synthetic user asks for retry instead of calling LLM
+        assert response.message == "I didn't receive a response. Could you try again?"
+        assert response.tokens_used == 0
+
+        # LLM should NOT have been called
+        mock_provider.generate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_agent_response_asks_for_retry(
+        self,
+        mock_provider: LLMProvider,
+        user_config: SyntheticUserConfig,
+    ) -> None:
+        """Test that whitespace-only agent responses result in clarification request."""
+        user = SyntheticUserLLM(mock_provider, user_config)
+
+        # Agent sends whitespace-only response
+        response = await user.respond("   \n\t  ")
+
+        # Synthetic user asks for retry
+        assert response.message == "I didn't receive a response. Could you try again?"
+        assert response.tokens_used == 0
+        mock_provider.generate.assert_not_called()

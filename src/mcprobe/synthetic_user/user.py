@@ -62,6 +62,13 @@ class SyntheticUserLLM:
         Raises:
             OrchestrationError: If the LLM call fails.
         """
+        # Handle empty agent responses - ask for clarification instead of confusing the LLM
+        if not assistant_message.strip():
+            response = "I didn't receive a response. Could you try again?"
+            self._conversation_history.append(Message(role="assistant", content=assistant_message))
+            self._conversation_history.append(Message(role="user", content=response))
+            return UserResponse(message=response, tokens_used=0)
+
         # Add assistant message to history
         self._conversation_history.append(Message(role="assistant", content=assistant_message))
 
