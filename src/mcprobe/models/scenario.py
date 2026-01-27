@@ -114,6 +114,7 @@ class TestScenario(BaseModel):
 
     name: str = Field(..., min_length=1)
     description: str = Field(..., min_length=1)
+    skip: bool | str | None = None  # True or reason string to skip this scenario
     synthetic_user: SyntheticUserConfig
     evaluation: EvaluationConfig
     tags: list[str] = Field(default_factory=list)
