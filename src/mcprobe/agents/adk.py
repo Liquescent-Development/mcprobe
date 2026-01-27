@@ -2,6 +2,7 @@
 
 import importlib.util
 import time
+import uuid
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -44,7 +45,8 @@ class GeminiADKAgent(AgentUnderTest):
             session_service=self._session_service,
         )
         self._session_id: str | None = None
-        self._user_id = "mcprobe_user"
+        # Use unique user_id per instance to prevent any ADK-side caching/session leakage
+        self._user_id = f"mcprobe_{uuid.uuid4().hex[:8]}"
 
     @property
     def name(self) -> str:
@@ -175,6 +177,8 @@ class GeminiADKAgent(AgentUnderTest):
         from google.adk.sessions import InMemorySessionService  # noqa: PLC0415
 
         self._session_id = None
+        # Generate new user_id to prevent any ADK-side caching/session leakage
+        self._user_id = f"mcprobe_{uuid.uuid4().hex[:8]}"
         # Create fresh session service
         self._session_service = InMemorySessionService()
         self._runner = Runner(
