@@ -10,11 +10,12 @@ This document provides a complete reference for the MCProbe test scenario YAML f
 
 ## Schema Overview
 
-A test scenario consists of six top-level sections:
+A test scenario consists of seven top-level sections:
 
 ```yaml
 name: string                    # Required: Scenario identifier
 description: string             # Required: What this scenario tests
+skip: bool | string             # Optional: Skip scenario (true or reason string)
 synthetic_user: {...}           # Required: User simulation config
 evaluation: {...}               # Required: Success/failure criteria
 tags: [...]                     # Optional: Classification tags
@@ -44,6 +45,17 @@ config: {...}                   # Optional: Per-scenario LLM overrides
   - Automatically trimmed of leading/trailing whitespace
 - **Description:** Detailed explanation of what behavior this scenario tests
 - **Example:** `"Tests the agent's ability to handle ambiguous weather queries by asking for clarification about the city"`
+
+#### `skip`
+- **Type:** `bool | string`
+- **Required:** No
+- **Default:** `false`
+- **Description:** Skip this scenario during test execution. Set to `true` to skip without a reason, or provide a string explanation for why the scenario is skipped.
+- **Examples:**
+  - `skip: true` - Skip without reason
+  - `skip: "Waiting on analytics API implementation"`
+  - `skip: "Feature not ready for testing"`
+- **Pytest Integration:** When set, the scenario appears as SKIPPED in pytest output with the reason displayed
 
 #### `synthetic_user`
 - **Type:** `SyntheticUserConfig` object
@@ -378,6 +390,9 @@ description: |
   ask appropriate clarifying questions, and provide accurate results with
   proper error handling.
 
+# Optional: Skip this scenario
+# skip: true  # or skip: "Reason for skipping"
+
 # Optional: Per-scenario LLM configuration overrides
 config:
   judge:
@@ -486,8 +501,39 @@ MCProbe validates scenarios according to these rules:
 4. **Non-Empty Lists:** `correctness_criteria` must contain at least one item
 5. **Enum Values:** Patience, verbosity, and expertise must use valid enum values
 6. **Tool Names:** Tool names in `tool_call_criteria` must be non-empty strings
+7. **Skip Field:** If provided, `skip` must be a boolean or non-empty string
 
 ## Common Patterns
+
+### Skipping Scenarios
+
+Skip scenarios that are not ready or temporarily disabled:
+
+```yaml
+name: Future Analytics Feature
+description: Tests analytics dashboard integration
+skip: "Waiting on analytics API implementation"
+
+synthetic_user:
+  persona: A data analyst
+  initial_query: "Show me the analytics dashboard"
+
+evaluation:
+  correctness_criteria:
+    - "Dashboard displays correct metrics"
+```
+
+Or skip without a reason:
+
+```yaml
+name: Experimental Feature
+description: Tests experimental functionality
+skip: true
+
+synthetic_user:
+  persona: A power user
+  initial_query: "Enable experimental mode"
+```
 
 ### Testing Clarification
 ```yaml

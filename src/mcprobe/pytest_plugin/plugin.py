@@ -113,6 +113,11 @@ class MCProbeItem(pytest.Item):
 
     def runtest(self) -> None:
         """Execute the test scenario."""
+        # Skip if scenario is marked as skipped
+        if self.scenario.skip:
+            reason = self.scenario.skip if isinstance(self.scenario.skip, str) else ""
+            pytest.skip(reason)
+
         # Get configuration from pytest options
         pytest_config = self.config
 
